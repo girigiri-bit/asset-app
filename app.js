@@ -17,6 +17,8 @@ let state = JSON.parse(localStorage.getItem('assetFolioDB')) || {
 
 let allocationChart = null;
 let chartType = 'ticker';
+let editingAccountId = null;
+let editingStockId = null;
 
 // --- 2. Core Functions ---
 
@@ -278,7 +280,10 @@ function renderAccountList() {
             </div>
             <div class="acc-actions">
                 <div class="acc-amount"><span class="privacy-blur">¥${Math.floor(accTotal).toLocaleString()}</span></div>
-                <button class="btn-delete-x" onclick="deleteAccount('${acc.id}')">×</button>
+                <div class="acc-btns">
+                    <button class="btn-icon-edit" onclick="openEditAccountModal('${acc.id}')">✏️</button>
+                    <button class="btn-delete-x" onclick="deleteAccount('${acc.id}')">×</button>
+                </div>
             </div>
         `;
         listEl.appendChild(div);
@@ -321,7 +326,10 @@ function renderStockList() {
                     ${s.currentPrice ? `¥${Math.floor(s.currentPrice).toLocaleString()} (${changePct}%)` : `@${s.currency === 'USD' ? '$' : '¥'}${s.purchasePrice}`}
                 </div>
             </div>
-            <button class="btn-delete-small" onclick="deleteStock('${s.id}')" style="grid-column: span 2; margin-top: 5px; background: none; border: none; color: #ff4d4d; cursor: pointer; text-align: left; font-size: 0.7rem; opacity: 0.6;">削除する</button>
+            <div class="acc-btns" style="grid-column: span 2; margin-top: 8px;">
+                <button class="btn-icon-edit" onclick="openEditStockModal('${s.id}')" style="font-size: 0.8rem; opacity: 0.7;">✏️ 編集</button>
+                <button class="btn-delete-x" onclick="deleteStock('${s.id}')" style="font-size: 0.8rem; opacity: 0.7; margin-left: auto;">🗑️ 削除</button>
+            </div>
         `;
         listEl.appendChild(div);
     });
@@ -345,7 +353,23 @@ function switchChart(type) {
     renderChart();
 }
 
-function showModal(id) { document.getElementById(id).style.display = 'flex'; }
+// --- 5. Navigation & UI Controls ---
+
+function showModal(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    
+    // Reset editing state if opening add stock modal directly
+    if (id === 'modal-add-stock' && !editingStockId) {
+        const title = el.querySelector('h3');
+        if (title) title.textContent = '銘柄を追加';
+        document.getElementById('stock-ticker').value = '';
+        document.getElementById('stock-price').value = '';
+        document.getElementById('stock-shares').value = '';
+    }
+    
+    el.style.display = 'flex';
+}
 function hideModal(id) { document.getElementById(id).style.display = 'none'; }
 
 function showToast(message) {
@@ -362,25 +386,43 @@ function showToast(message) {
 
 // Override alerts with toasts
 function addAccount() {
-    const name = document.getElementById('acc-name').value;
-    const icon = document.getElementById('acc-icon').value || '🏦';
+    const name = document.getElementById('acc-name').value.trim();
+    const icon = document.getElementById('acc-icon').value.trim() || '🏦';
     if (!name) return showToast('口座名を入力してください');
 
-    // Check for duplicates
-    const existing = state.accounts.find(a => a.name === name);
-    if (existing) {
-        showToast('同名の口座が既に存在するため、既存の口座に追加されます');
-        hideModal('modal-add-account');
-        document.getElementById('acc-name').value = '';
-        return;
+    if (editingAccountId) {
+        const acc = state.accounts.find(a => a.id === editingAccountId);
+        if (acc) {
+            acc.name = name;
+            acc.icon = icon;
+            showToast('口座情報を更新しました');
+        }
+        editingAccountId = null;
+    } else {
+        const newAcc = { id: 'acc_' + Date.now(), name, icon };
+        state.accounts.push(newAcc);
+        showToast('口座を追加しました');
     }
 
-    const newAcc = { id: 'acc_' + Date.now(), name, icon };
-    state.accounts.push(newAcc);
     updateUI();
     hideModal('modal-add-account');
     document.getElementById('acc-name').value = '';
-    showToast('口座を追加しました');
+    document.getElementById('acc-icon').value = '';
+}
+
+function openEditAccountModal(id) {
+    const acc = state.accounts.find(a => a.id === id);
+    if (!acc) return;
+    
+    editingAccountId = id;
+    document.getElementById('acc-name').value = acc.name;
+    document.getElementById('acc-icon').value = acc.icon || '🏦';
+    
+    const modal = document.getElementById('modal-add-account');
+    const title = modal.querySelector('h3');
+    if (title) title.textContent = '口座を編集';
+    
+    showModal('modal-add-account');
 }
 
 function addStock() {
@@ -392,32 +434,56 @@ function addStock() {
 
     if (!ticker || !price || !shares) return showToast('全ての項目を入力してください');
 
-    // Normalization: Uppercase English tickers
-    ticker = ticker.toUpperCase();
-    
-    // Japanese stock heuristic: If 4 digits, add .T
-    if (/^\d{4}$/.test(ticker)) {
-        ticker += '.T';
+    if (editingStockId) {
+        const stock = state.stocks.find(s => s.id === editingStockId);
+        if (stock) {
+            stock.accountId = accId;
+            stock.ticker = ticker;
+            stock.purchasePrice = price;
+            stock.shares = shares;
+            stock.currency = currency;
+            showToast('銘柄情報を更新しました');
+        }
+        editingStockId = null;
+    } else {
+        const newStock = { 
+            id: 's_' + Date.now(), 
+            accountId: accId, 
+            ticker, 
+            name: ticker, 
+            purchasePrice: price, 
+            currentPrice: 0, 
+            shares, 
+            currency 
+        };
+        state.stocks.push(newStock);
+        showToast('銘柄を追加しました');
     }
 
-    const newStock = { 
-        id: 's_' + Date.now(), 
-        accountId: accId, 
-        ticker, 
-        name: ticker, // Default to ticker until fetched
-        purchasePrice: price, 
-        currentPrice: 0, 
-        shares, 
-        currency 
-    };
-    state.stocks.push(newStock);
     updateUI();
     hideModal('modal-add-stock');
     document.getElementById('stock-ticker').value = '';
     document.getElementById('stock-price').value = '';
     document.getElementById('stock-shares').value = '';
-    showToast('銘柄を追加しました');
-    fetchAllData(); // Try to fetch price and name for the new stock
+    fetchAllData();
+}
+
+function openEditStockModal(id) {
+    const stock = state.stocks.find(s => s.id === id);
+    if (!stock) return;
+    
+    editingStockId = id;
+    document.getElementById('stock-acc-id').value = stock.accountId;
+    document.getElementById('stock-ticker').value = stock.ticker;
+    document.getElementById('stock-price').value = stock.purchasePrice;
+    document.getElementById('stock-shares').value = stock.shares;
+    document.getElementById('stock-currency').value = stock.currency;
+    
+    const modal = document.getElementById('modal-add-stock');
+    const title = modal.querySelector('h3');
+    if (title) title.textContent = '銘柄を編集';
+    
+    showModal('modal-add-stock');
 }
 
 function deleteStock(id) {
@@ -486,8 +552,67 @@ function showDrillDown(label) {
     // Predicate: which view to show?
     const showTickerView = stocksByTicker.length > 0 && (chartType === 'ticker' || !account);
     const showAccountView = account && !showTickerView;
+    const isOther = label === 'その他';
 
-    if (showTickerView) {
+    if (isOther) {
+        detailTitle.textContent = 'その他資産一覧';
+        
+        // Recalculate grouping to find which stocks are "Other"
+        const dataMap = {};
+        let grandTotal = 0;
+        state.stocks.forEach(s => {
+            const acc = state.accounts.find(a => a.id === s.accountId);
+            const names = getStockDisplayNames(s);
+            const l = chartType === 'ticker' ? names.primary : (acc ? acc.name : 'Unknown');
+            const price = s.currentPrice || s.purchasePrice;
+            const val = price * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+            dataMap[l] = (dataMap[l] || 0) + val;
+            grandTotal += val;
+        });
+
+        const sortedEntries = Object.entries(dataMap).sort((a, b) => b[1] - a[1]);
+        const otherLabels = new Set();
+        sortedEntries.forEach((entry, idx) => {
+            const [l, val] = entry;
+            const pct = (val / grandTotal) * 100;
+            if (idx >= 14 || pct <= 2.0) {
+                otherLabels.add(l);
+            }
+        });
+
+        // Find all stocks matching these labels
+        const otherStocks = state.stocks.filter(s => {
+            const acc = state.accounts.find(a => a.id === s.accountId);
+            const names = getStockDisplayNames(s);
+            const l = chartType === 'ticker' ? names.primary : (acc ? acc.name : 'Unknown');
+            return otherLabels.has(l);
+        }).sort((a,b) => {
+            const vA = (a.currentPrice || a.purchasePrice) * a.shares * (a.currency === 'USD' ? state.settings.exchangeRate : 1);
+            const vB = (b.currentPrice || b.purchasePrice) * b.shares * (b.currency === 'USD' ? state.settings.exchangeRate : 1);
+            return vB - vA;
+        });
+
+        detailBody.innerHTML = `
+            <div class="detail-stock-list">
+                ${otherStocks.map(s => {
+                    const p = s.currentPrice || s.purchasePrice;
+                    const v = p * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+                    const names = getStockDisplayNames(s);
+                    return `
+                        <div class="stock-item drill-downable" style="margin: 0" onclick="showDrillDown('${names.primary}')">
+                            <div class="stock-main">
+                                <span class="stock-t">${names.primary}</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-v"><span class="privacy-blur">¥${Math.floor(v).toLocaleString()}</span></div>
+                                <div class="stock-p">${s.shares}株 (${s.currency})</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+    } else if (showTickerView) {
         // Show Stock Detail (Sum stats)
         const stocks = stocksByTicker;
         if (stocks.length === 0) return;
