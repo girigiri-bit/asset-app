@@ -267,10 +267,19 @@ function getStockDisplayNames(s) {
 function calculateTotalAssets() {
     let total = 0;
     const stocks = getProfileStocks();
+    const accounts = getProfileAccounts();
+
+    // Sum Stocks
     stocks.forEach(s => {
         const price = s.currentPrice || s.purchasePrice;
         const val = price * s.shares;
         total += (s.currency === 'USD' ? val * state.settings.exchangeRate : val);
+    });
+
+    // Sum Cash
+    accounts.forEach(acc => {
+        total += (Number(acc.cashJPY) || 0);
+        total += (Number(acc.cashUSD) || 0) * state.settings.exchangeRate;
     });
 
     const totalEl = document.querySelector('#totalJPY .amount-value');
@@ -289,16 +298,37 @@ function renderChart() {
 
     const stocks = getProfileStocks();
     const accounts = getProfileAccounts();
-    stocks.forEach(s => {
-        const acc = accounts.find(a => a.id === s.accountId);
-        const names = getStockDisplayNames(s);
-        const label = chartType === 'ticker' ? names.primary : (acc ? acc.name : 'Unknown');
-        const price = s.currentPrice || s.purchasePrice;
-        const val = price * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
-        
-        dataMap[label] = (dataMap[label] || 0) + val;
-        grandTotal += val;
-    });
+
+    if (chartType === 'assetClass') {
+        // Group by Asset Class
+        stocks.forEach(s => {
+            const label = s.assetClass || (s.ticker.includes('.T') ? '日本株' : '外国株');
+            const price = s.currentPrice || s.purchasePrice;
+            const val = price * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+            dataMap[label] = (dataMap[label] || 0) + val;
+            grandTotal += val;
+        });
+        // Add Cash
+        let cashVal = 0;
+        accounts.forEach(acc => {
+            cashVal += (Number(acc.cashJPY) || 0) + (Number(acc.cashUSD) || 0) * state.settings.exchangeRate;
+        });
+        if (cashVal > 0) {
+            dataMap['現金'] = (dataMap['現金'] || 0) + cashVal;
+            grandTotal += cashVal;
+        }
+    } else {
+        stocks.forEach(s => {
+            const acc = accounts.find(a => a.id === s.accountId);
+            const names = getStockDisplayNames(s);
+            const label = chartType === 'ticker' ? names.primary : (acc ? acc.name : 'Unknown');
+            const price = s.currentPrice || s.purchasePrice;
+            const val = price * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+            
+            dataMap[label] = (dataMap[label] || 0) + val;
+            grandTotal += val;
+        });
+    }
 
     if (allocationChart) allocationChart.destroy();
     
@@ -422,7 +452,14 @@ function renderAccountList() {
         div.innerHTML = `
             <div class="acc-info">
                 <span class="acc-icon">${acc.icon || '🏦'}</span>
-                <span class="acc-name">${acc.name}</span>
+                <div class="acc-name-stack">
+                    <span class="acc-name">${acc.name}</span>
+                    ${(acc.cashJPY || acc.cashUSD) ? `
+                        <div class="acc-cash-line">
+                            現金: ${acc.cashJPY ? `¥${Math.floor(acc.cashJPY).toLocaleString()} ` : ''}${acc.cashUSD ? `$${acc.cashUSD.toLocaleString()}` : ''}
+                        </div>
+                    ` : ''}
+                </div>
             </div>
             <div class="acc-actions">
                 <div class="acc-amount"><span class="privacy-blur">¥${Math.floor(accTotal).toLocaleString()}</span></div>
@@ -454,6 +491,7 @@ function renderStockList() {
     sortedStocks.forEach(s => {
         const acc = currentAccounts.find(a => a.id === s.accountId);
         const names = getStockDisplayNames(s);
+        const assetClass = s.assetClass || (s.ticker.includes('.T') ? '日本株' : '外国株');
         const price = s.currentPrice || s.purchasePrice;
         const total = price * s.shares;
         const totalJPY = s.currency === 'USD' ? total * state.settings.exchangeRate : total;
@@ -466,7 +504,10 @@ function renderStockList() {
         div.className = 'stock-item';
         div.innerHTML = `
             <div class="stock-main">
-                <span class="stock-t">${names.primary}</span>
+                <div class="stock-t-row">
+                    <span class="stock-t">${names.primary}</span>
+                    <span class="badge-asset-class">${assetClass}</span>
+                </div>
                 <span class="stock-tick">${names.secondary}${names.secondary ? ' | ' : ''}${acc ? acc.name : 'Unknown'}</span>
             </div>
             <div class="stock-info">
@@ -497,7 +538,13 @@ function switchScreen(screenId) {
 function switchChart(type) {
     chartType = type;
     document.querySelectorAll('.chart-tab').forEach(btn => {
-        btn.classList.toggle('active', (type === 'ticker' && btn.innerText.includes('銘柄')) || (type === 'account' && btn.innerText.includes('口座')));
+        const triggers = {
+            'ticker': ['銘柄'],
+            'assetClass': ['資産'],
+            'account': ['口座']
+        };
+        const match = triggers[type].some(t => btn.innerText.includes(t));
+        btn.classList.toggle('active', match);
     });
     renderChart();
 }
@@ -537,6 +584,9 @@ function showToast(message) {
 function addAccount() {
     const name = document.getElementById('acc-name').value.trim();
     const icon = document.getElementById('acc-icon').value.trim() || '🏦';
+    const cashJPY = Number(document.getElementById('acc-cash-jpy').value) || 0;
+    const cashUSD = Number(document.getElementById('acc-cash-usd').value) || 0;
+
     if (!name) return showToast('口座名を入力してください');
 
     if (editingAccountId) {
@@ -544,11 +594,18 @@ function addAccount() {
         if (acc) {
             acc.name = name;
             acc.icon = icon;
+            acc.cashJPY = cashJPY;
+            acc.cashUSD = cashUSD;
             showToast('口座情報を更新しました');
         }
         editingAccountId = null;
     } else {
-        const newAcc = { id: 'acc_' + Date.now(), name, icon, profileId: state.currentProfileId };
+        const newAcc = { 
+            id: 'acc_' + Date.now(), 
+            name, icon, 
+            profileId: state.currentProfileId,
+            cashJPY, cashUSD
+        };
         state.accounts.push(newAcc);
         showToast('口座を追加しました');
     }
@@ -566,6 +623,8 @@ function openEditAccountModal(id) {
     editingAccountId = id;
     document.getElementById('acc-name').value = acc.name;
     document.getElementById('acc-icon').value = acc.icon || '🏦';
+    document.getElementById('acc-cash-jpy').value = acc.cashJPY || 0;
+    document.getElementById('acc-cash-usd').value = acc.cashUSD || 0;
     
     const modal = document.getElementById('modal-add-account');
     const title = modal.querySelector('h3');
@@ -580,6 +639,7 @@ function addStock() {
     const price = Number(document.getElementById('stock-price').value);
     const shares = Number(document.getElementById('stock-shares').value);
     const currency = document.getElementById('stock-currency').value;
+    const assetClass = document.getElementById('stock-asset-class').value;
 
     if (!ticker || !price || !shares) return showToast('全ての項目を入力してください');
 
@@ -591,6 +651,7 @@ function addStock() {
             stock.purchasePrice = price;
             stock.shares = shares;
             stock.currency = currency;
+            stock.assetClass = assetClass;
             showToast('銘柄情報を更新しました');
         }
         editingStockId = null;
@@ -603,7 +664,8 @@ function addStock() {
             purchasePrice: price, 
             currentPrice: 0, 
             shares, 
-            currency 
+            currency,
+            assetClass
         };
         state.stocks.push(newStock);
         showToast('銘柄を追加しました');
@@ -627,6 +689,7 @@ function openEditStockModal(id) {
     document.getElementById('stock-price').value = stock.purchasePrice;
     document.getElementById('stock-shares').value = stock.shares;
     document.getElementById('stock-currency').value = stock.currency;
+    document.getElementById('stock-asset-class').value = stock.assetClass || (stock.ticker.includes('.T') ? '日本株' : '外国株');
     
     const modal = document.getElementById('modal-add-stock');
     const title = modal.querySelector('h3');
