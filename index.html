@@ -15,6 +15,12 @@
     <div id="app">
         <header>
             <h1>AssetFolio β</h1>
+            <div class="header-actions">
+                <span id="last-updated" class="last-updated">未更新</span>
+                <button id="refresh-btn" class="refresh-btn" onclick="fetchAllData()">
+                    <span class="refresh-icon">🔄</span>
+                </button>
+            </div>
         </header>
 
         <main>
@@ -110,8 +116,9 @@
                 <h3>銘柄を追加</h3>
                 <select id="stock-acc-id"></select>
                 <input type="text" id="stock-ticker" placeholder="銘柄コード/ティッカー (例: AAPL)">
-                <input type="number" id="stock-price" placeholder="現在価格/買付価格">
+                <input type="number" id="stock-price" placeholder="買付単価 (平均)">
                 <input type="number" id="stock-shares" placeholder="保有数量">
+                <div class="input-info">株価は自動取得を試みますが、手動入力は参考値として保存されます。</div>
                 <select id="stock-currency">
                     <option value="JPY">JPY (円)</option>
                     <option value="USD">USD (ドル)</option>

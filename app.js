@@ -8,9 +8,10 @@ let state = JSON.parse(localStorage.getItem('assetFolioDB')) || {
         { id: 'acc1', name: 'メイン口座', icon: '🏦' }
     ],
     stocks: [
-        { id: 's1', accountId: 'acc1', ticker: 'AAPL', purchasePrice: 180, shares: 10, currency: 'USD' },
-        { id: 's2', accountId: 'acc1', ticker: '7203.T', purchasePrice: 3000, shares: 100, currency: 'JPY' }
+        { id: 's1', accountId: 'acc1', ticker: 'AAPL', purchasePrice: 180, currentPrice: 0, shares: 10, currency: 'USD' },
+        { id: 's2', accountId: 'acc1', ticker: '7203.T', purchasePrice: 3000, currentPrice: 0, shares: 100, currency: 'JPY' }
     ],
+    lastUpdated: null,
     settings: { exchangeRate: 150 }
 };
 
@@ -63,12 +64,19 @@ function updateUI() {
     // Update settings UI
     const rateInput = document.getElementById('setting-exchange-rate');
     if (rateInput) rateInput.value = state.settings.exchangeRate;
+
+    // Update last updated text
+    const updateEl = document.getElementById('last-updated');
+    if (updateEl) {
+        updateEl.textContent = state.lastUpdated ? new Date(state.lastUpdated).toLocaleTimeString() + ' 更新' : '未更新';
+    }
 }
 
 function calculateTotalAssets() {
     let total = 0;
     state.stocks.forEach(s => {
-        const val = s.purchasePrice * s.shares;
+        const price = s.currentPrice || s.purchasePrice;
+        const val = price * s.shares;
         total += (s.currency === 'USD' ? val * state.settings.exchangeRate : val);
     });
 
@@ -89,7 +97,8 @@ function renderChart() {
     state.stocks.forEach(s => {
         const acc = state.accounts.find(a => a.id === s.accountId);
         const label = chartType === 'ticker' ? s.ticker : (acc ? acc.name : 'Unknown');
-        const val = s.purchasePrice * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+        const price = s.currentPrice || s.purchasePrice;
+        const val = price * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
         
         dataMap[label] = (dataMap[label] || 0) + val;
         grandTotal += val;
@@ -162,8 +171,13 @@ function renderStockList() {
 
     state.stocks.forEach(s => {
         const acc = state.accounts.find(a => a.id === s.accountId);
-        const total = s.purchasePrice * s.shares;
+        const price = s.currentPrice || s.purchasePrice;
+        const total = price * s.shares;
         const totalJPY = s.currency === 'USD' ? total * state.settings.exchangeRate : total;
+        
+        const change = s.currentPrice ? (s.currentPrice - s.purchasePrice) * s.shares : 0;
+        const changePct = s.currentPrice ? ((s.currentPrice / s.purchasePrice - 1) * 100).toFixed(2) : 0;
+        const changeColor = change > 0 ? '#4caf50' : (change < 0 ? '#ff4d4d' : 'inherit');
 
         const div = document.createElement('div');
         div.className = 'stock-item';
@@ -174,9 +188,11 @@ function renderStockList() {
             </div>
             <div class="stock-info">
                 <div class="stock-v">¥${Math.floor(totalJPY).toLocaleString()}</div>
-                <div class="stock-p">${s.shares}株 @ ${s.currency === 'USD' ? '$' : '¥'}${s.purchasePrice}</div>
+                <div class="stock-p" style="color: ${changeColor}">
+                    ${s.currentPrice ? `¥${Math.floor(s.currentPrice).toLocaleString()} (${changePct}%)` : `@${s.currency === 'USD' ? '$' : '¥'}${s.purchasePrice}`}
+                </div>
             </div>
-            <button class="btn-delete-small" onclick="deleteStock('${s.id}')" style="grid-column: span 2; margin-top: 10px; background: none; border: none; color: #ff4d4d; cursor: pointer; text-align: left; font-size: 0.7rem;">削除する</button>
+            <button class="btn-delete-small" onclick="deleteStock('${s.id}')" style="grid-column: span 2; margin-top: 5px; background: none; border: none; color: #ff4d4d; cursor: pointer; text-align: left; font-size: 0.7rem; opacity: 0.6;">削除する</button>
         `;
         listEl.appendChild(div);
     });
@@ -247,7 +263,7 @@ function addStock() {
 
     if (!ticker || !price || !shares) return showToast('全ての項目を入力してください');
 
-    const newStock = { id: 's_' + Date.now(), accountId: accId, ticker, purchasePrice: price, shares, currency };
+    const newStock = { id: 's_' + Date.now(), accountId: accId, ticker, purchasePrice: price, currentPrice: 0, shares, currency };
     state.stocks.push(newStock);
     updateUI();
     hideModal('modal-add-stock');
@@ -255,6 +271,7 @@ function addStock() {
     document.getElementById('stock-price').value = '';
     document.getElementById('stock-shares').value = '';
     showToast('銘柄を追加しました');
+    fetchAllData(); // Try to fetch price for the new stock
 }
 
 function deleteStock(id) {
@@ -291,6 +308,71 @@ function updateExchangeRate(val) {
     updateUI();
 }
 
+// --- 5. Real-Time Data Fetching ---
+
+async function fetchAllData() {
+    const btn = document.getElementById('refresh-btn');
+    if (btn) btn.classList.add('loading');
+    
+    try {
+        await Promise.all([
+            fetchExchangeRate(),
+            fetchStockPrices()
+        ]);
+        state.lastUpdated = Date.now();
+        showToast('データを更新しました');
+    } catch (e) {
+        console.error(e);
+        showToast('データ更新に失敗しました');
+    } finally {
+        if (btn) btn.classList.remove('loading');
+        updateUI();
+    }
+}
+
+async function fetchExchangeRate() {
+    try {
+        const res = await fetch('https://api.frankfurter.app/latest?from=USD&to=JPY');
+        const data = await res.json();
+        if (data && data.rates && data.rates.JPY) {
+            state.settings.exchangeRate = data.rates.JPY;
+        }
+    } catch (e) {
+        console.warn('FX fetch failed', e);
+    }
+}
+
+async function fetchStockPrices() {
+    const tickers = [...new Set(state.stocks.map(s => s.ticker))];
+    if (tickers.length === 0) return;
+
+    for (const symbol of tickers) {
+        // v8/chart API through corsproxy.io (more reliable than v7/quote via allorigins)
+        const url = `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}?interval=1d&range=1d`;
+        const proxyUrl = `https://corsproxy.io/?url=${encodeURIComponent(url)}`;
+
+        try {
+            const res = await fetch(proxyUrl);
+            const data = await res.json();
+            
+            if (data && data.chart && data.chart.result && data.chart.result[0]) {
+                const meta = data.chart.result[0].meta;
+                const price = meta.regularMarketPrice;
+                
+                if (price) {
+                    state.stocks.forEach(s => {
+                        if (s.ticker === symbol) {
+                            s.currentPrice = price;
+                        }
+                    });
+                }
+            }
+        } catch (e) {
+            console.warn(`Stock fetch failed for ${symbol}`, e);
+        }
+    }
+}
+
 function resetData() {
     if (!confirm('全てのデータを削除して初期化しますか？')) return;
     state = { accounts: [], stocks: [], settings: { exchangeRate: 150 } };
@@ -298,7 +380,9 @@ function resetData() {
 }
 
 // --- 5. Initial Load ---
-window.onload = () => {
+window.onload = async () => {
     mergeDuplicateAccounts();
     updateUI();
+    // Start automated fetch on load
+    await fetchAllData();
 };
