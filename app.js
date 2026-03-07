@@ -53,18 +53,28 @@ function mergeDuplicateAccounts() {
 function migrateStocks() {
     let changed = false;
     state.stocks.forEach(s => {
+        const oldTicker = s.ticker;
+        
+        // Enforce uppercase
+        s.ticker = s.ticker.toUpperCase();
+        
         // Fix 4-digit Japanese tickers missing .T
         if (/^\d{4}$/.test(s.ticker)) {
-            const oldTicker = s.ticker;
             s.ticker += '.T';
-            // Also reset name if it was just the ticker so it gets updated on fetch
-            if (!s.name || s.name === oldTicker) {
+        }
+
+        if (s.ticker !== oldTicker) {
+            // If name was default ticker, update it too
+            if (!s.name || s.name === oldTicker || s.name === oldTicker.toUpperCase()) {
                 s.name = s.ticker;
             }
             changed = true;
         }
     });
-    if (changed) fetchAllData();
+    if (changed) {
+        saveData();
+        fetchAllData();
+    }
 }
 
 function saveData() {
