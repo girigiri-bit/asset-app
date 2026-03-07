@@ -1191,4 +1191,9 @@ window.onload = async () => {
     updateUI();
     // Start automated fetch on load
     await fetchAllData();
+    
+    // Register Service Worker
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('./sw.js').catch(err => console.warn('SW register failed', err));
+    }
 };
