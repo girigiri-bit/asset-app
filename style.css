@@ -167,9 +167,58 @@ header h1 {
   color: white;
 }
 
+.chart-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
 .chart-container {
-  height: 250px;
+  height: 220px;
   position: relative;
+  flex: 1;
+}
+
+.chart-list-data {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 5px;
+}
+
+.chart-list-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+}
+
+.cli-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cli-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.cli-name {
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+.cli-value {
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.cli-pct {
+  font-size: 0.75rem;
+  color: var(--text-sub);
+  margin-left: 5px;
 }
 
 /* Account List */

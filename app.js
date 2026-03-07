@@ -105,15 +105,77 @@ function renderChart() {
     });
 
     if (allocationChart) allocationChart.destroy();
+    
+    // Clear list
+    const listEl = document.getElementById('allocationListData');
+    if (listEl) listEl.innerHTML = '';
+
     if (grandTotal === 0) return;
+
+    // Grouping Logic
+    const fullList = Object.entries(dataMap).sort((a, b) => b[1] - a[1]);
+    const processedList = [];
+    let othersValue = 0;
+
+    fullList.forEach((entry, index) => {
+        const [label, val] = entry;
+        const pct = (val / grandTotal) * 100;
+
+        // Group into "Other" if:
+        // 1. Position is 15th or later (index >= 14)
+        // 2. Percentage is 2.0% or less
+        if (index >= 14 || pct <= 2.0) {
+            othersValue += val;
+        } else {
+            processedList.push({ label, val, pct });
+        }
+    });
+
+    if (othersValue > 0) {
+        processedList.push({ 
+            label: 'その他', 
+            val: othersValue, 
+            pct: (othersValue / grandTotal) * 100 
+        });
+    }
+
+    const labels = processedList.map(item => item.label);
+    const values = processedList.map(item => item.val);
+    
+    // 15 Premium Colors (Mix of Crimson/Red variants and neutral tones)
+    const colors = [
+        '#bf0000', '#eb0a0a', '#ff3333', '#8b0000', '#5e0000', 
+        '#ffffff', '#f0f0f0', '#dcdcdc', '#c0c0c0', '#a9a9a9', 
+        '#808080', '#696969', '#555555', '#333333', '#1a1a1a'
+    ];
+
+    // Render List
+    if (listEl) {
+        processedList.forEach((item, i) => {
+            const color = colors[i % colors.length];
+            const listItem = document.createElement('div');
+            listItem.className = 'chart-list-item';
+            listItem.innerHTML = `
+                <div class="cli-label">
+                    <span class="cli-dot" style="background: ${color}"></span>
+                    <span class="cli-name">${item.label}</span>
+                </div>
+                <div class="cli-value">
+                    ¥${Math.floor(item.val).toLocaleString()}
+                    <span class="cli-pct">${item.pct.toFixed(1)}%</span>
+                </div>
+            `;
+            listEl.appendChild(listItem);
+        });
+    }
 
     allocationChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
-            labels: Object.keys(dataMap),
+            labels: labels,
             datasets: [{
-                data: Object.values(dataMap),
-                backgroundColor: ['#bf0000', '#eb0a0a', '#ffffff', '#333333', '#666666'],
+                data: values,
+                backgroundColor: colors.slice(0, labels.length),
                 borderWidth: 0
             }]
         },
@@ -169,7 +231,14 @@ function renderStockList() {
     if (!listEl) return;
     listEl.innerHTML = '';
 
-    state.stocks.forEach(s => {
+    // Sort stocks by total value descending
+    const sortedStocks = [...state.stocks].sort((a, b) => {
+        const valA = (a.currentPrice || a.purchasePrice) * a.shares * (a.currency === 'USD' ? state.settings.exchangeRate : 1);
+        const valB = (b.currentPrice || b.purchasePrice) * b.shares * (b.currency === 'USD' ? state.settings.exchangeRate : 1);
+        return valB - valA;
+    });
+
+    sortedStocks.forEach(s => {
         const acc = state.accounts.find(a => a.id === s.accountId);
         const price = s.currentPrice || s.purchasePrice;
         const total = price * s.shares;
