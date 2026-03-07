@@ -422,6 +422,7 @@ function showDrillDown(label) {
         const diff = totalVal - totalCost;
         const diffPct = ((totalVal / totalCost - 1) * 100).toFixed(2);
         const color = diff >= 0 ? '#4caf50' : '#ff4d4d';
+        const currentPriceSingle = stocks[0].currentPrice || stocks[0].purchasePrice;
 
         detailBody.innerHTML = `
             <div class="detail-stat-grid">
@@ -432,6 +433,14 @@ function showDrillDown(label) {
                 <div class="stat-card">
                     <div class="stat-label">損益</div>
                     <div class="stat-value" style="color: ${color}">¥${Math.floor(currency === 'USD' ? diff * state.settings.exchangeRate : diff).toLocaleString()} (${diffPct}%)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">取得総額</div>
+                    <div class="stat-value">¥${Math.floor(currency === 'USD' ? totalCost * state.settings.exchangeRate : totalCost).toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">現在価格</div>
+                    <div class="stat-value">${currency === 'USD' ? '$' : '¥'}${currentPriceSingle.toLocaleString()}</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">保有数</div>
@@ -445,30 +454,125 @@ function showDrillDown(label) {
             <div class="input-info" style="margin-top: -10px">※複数の口座に跨る場合は合算値を表示しています。</div>
         `;
     } else if (isAccount) {
-        // Show Account detail (list of stocks)
+        // Show Account detail (Total + Chart + List)
         const account = state.accounts.find(a => a.name === label);
         if (!account) return;
 
-        const stocks = state.stocks.filter(s => s.accountId === account.id);
-        
-        let html = `<div class="detail-stock-list">`;
-        stocks.forEach(s => {
+        const accountStocks = state.stocks.filter(s => s.accountId === account.id);
+        let accountTotal = 0;
+        const accountDataMap = {};
+
+        accountStocks.forEach(s => {
             const price = s.currentPrice || s.purchasePrice;
-            const totalJPY = (price * s.shares) * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
-            html += `
-                <div class="stock-item" style="margin: 0">
-                    <div class="stock-main">
-                        <span class="stock-t">${s.ticker}</span>
-                    </div>
-                    <div class="stock-info">
-                        <div class="stock-v">¥${Math.floor(totalJPY).toLocaleString()}</div>
-                        <div class="stock-p">${s.shares}株 (${s.currency})</div>
-                    </div>
-                </div>
-            `;
+            const val = price * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+            accountTotal += val;
+            accountDataMap[s.ticker] = (accountDataMap[s.ticker] || 0) + val;
         });
-        html += `</div>`;
-        detailBody.innerHTML = html;
+
+        // Grouping logic for Account Chart (Same as main chart)
+        const sortedEntries = Object.entries(accountDataMap).sort((a,b) => b[1] - a[1]);
+        const processedList = [];
+        let othersVal = 0;
+        sortedEntries.forEach((entry, idx) => {
+            const [ticker, val] = entry;
+            const pct = (val / accountTotal) * 100;
+            if (idx >= 14 || pct <= 2.0) {
+                othersVal += val;
+            } else {
+                processedList.push({ label: ticker, val, pct });
+            }
+        });
+        if (othersVal > 0) {
+            processedList.push({ label: 'その他', val: othersVal, pct: (othersVal / accountTotal) * 100 });
+        }
+
+        const colors = [
+            '#bf0000', '#eb0a0a', '#ff3333', '#8b0000', '#5e0000', 
+            '#ffffff', '#f0f0f0', '#dcdcdc', '#c0c0c0', '#a9a9a9', 
+            '#808080', '#696969', '#555555', '#333333', '#1a1a1a'
+        ];
+
+        detailBody.innerHTML = `
+            <div class="stat-card" style="margin-bottom: 20px;">
+                <div class="stat-label">口座合計 (推定)</div>
+                <div class="stat-value" style="font-size: 1.5rem">¥${Math.floor(accountTotal).toLocaleString()}</div>
+            </div>
+            <div class="chart-layout" style="margin-bottom: 20px;">
+                <div class="chart-container" style="height: 180px">
+                    <canvas id="accountDetailChart"></canvas>
+                </div>
+                <div id="accountDetailList" class="chart-list-data"></div>
+            </div>
+            <div class="detail-stock-list">
+                <h4 style="margin-bottom: 10px; font-size: 0.9rem; color: var(--text-sub);">銘柄一覧</h4>
+                ${accountStocks.sort((a,b) => {
+                    const vA = (a.currentPrice || a.purchasePrice) * a.shares * (a.currency === 'USD' ? state.settings.exchangeRate : 1);
+                    const vB = (b.currentPrice || b.purchasePrice) * b.shares * (b.currency === 'USD' ? state.settings.exchangeRate : 1);
+                    return vB - vA;
+                }).map(s => {
+                    const p = s.currentPrice || s.purchasePrice;
+                    const v = p * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+                    return `
+                        <div class="stock-item" style="margin: 0">
+                            <div class="stock-main">
+                                <span class="stock-t">${s.ticker}</span>
+                            </div>
+                            <div class="stock-info">
+                                <div class="stock-v">¥${Math.floor(v).toLocaleString()}</div>
+                                <div class="stock-p">${s.shares}株 (${s.currency})</div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+
+        // Render Chart for Account Detail
+        const canvas = document.getElementById('accountDetailChart');
+        if (canvas) {
+            const ctx = canvas.getContext('2d');
+            new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: processedList.map(item => item.label),
+                    datasets: [{
+                        data: processedList.map(item => item.val),
+                        backgroundColor: colors.slice(0, processedList.length),
+                        borderWidth: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '70%',
+                    plugins: {
+                        legend: { display: false },
+                        datalabels: { display: false }
+                    }
+                }
+            });
+        }
+
+        // Render List for Account Chart
+        const listEl = document.getElementById('accountDetailList');
+        if (listEl) {
+            processedList.forEach((item, i) => {
+                const color = colors[i % colors.length];
+                const div = document.createElement('div');
+                div.className = 'chart-list-item';
+                div.style.cursor = 'default';
+                div.innerHTML = `
+                    <div class="cli-label">
+                        <span class="cli-dot" style="background: ${color}"></span>
+                        <span class="cli-name">${item.label}</span>
+                    </div>
+                    <div class="cli-value">
+                        <span class="cli-pct">${item.pct.toFixed(1)}%</span>
+                    </div>
+                `;
+                listEl.appendChild(div);
+            });
+        }
     } else {
         // "Others" or other cases
         detailBody.innerHTML = `<p style="color: var(--text-sub); text-align: center; padding: 20px;">詳細は個別銘柄または口座を選択してください。</p>`;
