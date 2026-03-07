@@ -629,6 +629,8 @@ function addAccount() {
     hideModal('modal-add-account');
     document.getElementById('acc-name').value = '';
     document.getElementById('acc-icon').value = '';
+    document.getElementById('acc-cash-jpy').value = '0';
+    document.getElementById('acc-cash-usd').value = '0';
 }
 
 function openEditAccountModal(id) {
@@ -656,6 +658,7 @@ function addStock() {
     const currency = document.getElementById('stock-currency').value;
     const assetClass = document.getElementById('stock-asset-class').value;
 
+    if (!accId) return showToast('先に口座を登録してください');
     if (!ticker || !price || !shares) return showToast('全ての項目を入力してください');
 
     if (editingStockId) {
@@ -1018,10 +1021,11 @@ function showDrillDown(label) {
                 }).map(s => {
                     const p = s.currentPrice || s.purchasePrice;
                     const v = p * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+                    const names = getStockDisplayNames(s);
                     return `
-                        <div class="stock-item drill-downable" style="margin: 0" onclick="showDrillDown('${s.ticker}')">
+                        <div class="stock-item drill-downable" style="margin: 0" onclick="showDrillDown('${names.primary}')">
                             <div class="stock-main">
-                                <span class="stock-t">${s.ticker}</span>
+                                <span class="stock-t">${names.primary}</span>
                             </div>
                             <div class="stock-info">
                                 <div class="stock-v"><span class="privacy-blur">¥${Math.floor(v).toLocaleString()}</span></div>
