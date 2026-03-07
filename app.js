@@ -99,7 +99,6 @@ function migrateStocks() {
     });
     if (changed) {
         saveData();
-        fetchAllData();
     }
 }
 
@@ -551,20 +550,36 @@ function switchChart(type) {
 
 // --- 5. Navigation & UI Controls ---
 
-function showModal(id) {
-    const el = document.getElementById(id);
-    if (!el) return;
-    
-    // Reset editing state if opening add stock modal directly
-    if (id === 'modal-add-stock' && !editingStockId) {
-        const title = el.querySelector('h3');
+function openAddAccountModal() {
+    editingAccountId = null;
+    const modal = document.getElementById('modal-add-account');
+    if (modal) {
+        const title = modal.querySelector('h3');
+        if (title) title.textContent = '口座を追加';
+        document.getElementById('acc-name').value = '';
+        document.getElementById('acc-icon').value = '';
+        document.getElementById('acc-cash-jpy').value = '0';
+        document.getElementById('acc-cash-usd').value = '0';
+    }
+    showModal('modal-add-account');
+}
+
+function openAddStockModal() {
+    editingStockId = null;
+    const modal = document.getElementById('modal-add-stock');
+    if (modal) {
+        const title = modal.querySelector('h3');
         if (title) title.textContent = '銘柄を追加';
         document.getElementById('stock-ticker').value = '';
         document.getElementById('stock-price').value = '';
         document.getElementById('stock-shares').value = '';
     }
-    
-    el.style.display = 'flex';
+    showModal('modal-add-stock');
+}
+
+function showModal(id) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'flex';
 }
 function hideModal(id) { document.getElementById(id).style.display = 'none'; }
 
@@ -1084,6 +1099,7 @@ async function fetchAllData() {
     if (btn) btn.classList.add('loading');
     
     try {
+        migrateStocks();
         await Promise.all([
             fetchExchangeRate(),
             fetchStockPrices()
