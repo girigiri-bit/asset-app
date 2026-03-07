@@ -4,8 +4,10 @@ if (typeof ChartDataLabels !== 'undefined') {
 }
 
 let state = JSON.parse(localStorage.getItem('assetFolioDB')) || {
+    profiles: [{ id: 'p_default', name: '本人' }],
+    currentProfileId: 'p_default',
     accounts: [
-        { id: 'acc1', name: 'メイン口座', icon: '🏦' }
+        { id: 'acc1', name: 'メイン口座', icon: '🏦', profileId: 'p_default' }
     ],
     stocks: [
         { id: 's1', accountId: 'acc1', ticker: 'AAPL', purchasePrice: 180, currentPrice: 0, shares: 10, currency: 'USD' },
@@ -14,6 +16,27 @@ let state = JSON.parse(localStorage.getItem('assetFolioDB')) || {
     lastUpdated: null,
     settings: { exchangeRate: 150, privacyMode: false }
 };
+
+// --- Profile Migration & Helpers ---
+if (!state.profiles) {
+    state.profiles = [{ id: 'p_default', name: '本人' }];
+    state.currentProfileId = 'p_default';
+}
+if (!state.currentProfileId) {
+    state.currentProfileId = state.profiles[0].id;
+}
+state.accounts.forEach(acc => {
+    if (!acc.profileId) acc.profileId = 'p_default';
+});
+
+function getProfileAccounts(profileId = state.currentProfileId) {
+    return state.accounts.filter(a => a.profileId === profileId);
+}
+
+function getProfileStocks(profileId = state.currentProfileId) {
+    const accIds = state.accounts.filter(a => a.profileId === profileId).map(a => a.id);
+    return state.stocks.filter(s => accIds.includes(s.accountId));
+}
 
 let allocationChart = null;
 let chartType = 'ticker';
@@ -85,6 +108,8 @@ function saveData() {
 
 function updateUI() {
     saveData();
+    populateProfileSwitcher();
+    renderProfileList();
     calculateTotalAssets();
     renderAccountList();
     renderStockList();
@@ -111,6 +136,120 @@ function updateUI() {
     }
 }
 
+function populateProfileSwitcher() {
+    const switcher = document.getElementById('profile-switcher');
+    if (!switcher) return;
+    switcher.innerHTML = state.profiles.map(p => 
+        `<option value="${p.id}" ${p.id === state.currentProfileId ? 'selected' : ''}>${p.name}</option>`
+    ).join('');
+}
+
+function renderProfileList() {
+    const listEl = document.getElementById('profile-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    state.profiles.forEach(p => {
+        const div = document.createElement('div');
+        div.className = 'profile-item';
+        div.innerHTML = `
+            <div class="profile-item-main">
+                <input type="text" class="profile-name-input" value="${p.name}" onchange="renameProfile('${p.id}', this.value)">
+            </div>
+            <div class="profile-actions" style="display: flex; gap: 8px; align-items: center;">
+                <button class="btn-icon-copy" onclick="copyProfile('${p.id}')" title="コピー" style="background: none; border: none; cursor: pointer; font-size: 1.1rem; opacity: 0.7;">👯</button>
+                ${state.profiles.length > 1 ? `<button class="btn-icon-delete" onclick="deleteProfile('${p.id}')" style="background: none; border: none; cursor: pointer; opacity: 0.6;">🗑️</button>` : ''}
+            </div>
+        `;
+        listEl.appendChild(div);
+    });
+}
+
+function switchProfile(id) {
+    state.currentProfileId = id;
+    updateUI();
+    showToast(`${state.profiles.find(p => p.id === id).name} に切り替えました`);
+}
+
+function addProfile() {
+    const input = document.getElementById('new-profile-name');
+    const name = input.value.trim();
+    if (!name) return showToast('名前を入力してください');
+    
+    const newProfile = { id: 'p_' + Date.now(), name };
+    state.profiles.push(newProfile);
+    input.value = '';
+    updateUI();
+    showToast('プロファイルを追加しました');
+}
+
+function renameProfile(id, newName) {
+    const p = state.profiles.find(p => p.id === id);
+    if (p && newName.trim()) {
+        p.name = newName.trim();
+        saveData();
+        populateProfileSwitcher();
+    }
+}
+
+function copyProfile(id) {
+    const sourceProfile = state.profiles.find(p => p.id === id);
+    if (!sourceProfile) return;
+
+    // 1. Create new profile
+    const newProfile = {
+        id: 'p_' + Date.now(),
+        name: sourceProfile.name + ' (コピー)'
+    };
+    state.profiles.push(newProfile);
+
+    // 2. Clone accounts
+    const sourceAccounts = state.accounts.filter(a => a.profileId === id);
+    sourceAccounts.forEach(oldAcc => {
+        const newAccId = 'acc_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+        const newAcc = { ...oldAcc, id: newAccId, profileId: newProfile.id };
+        state.accounts.push(newAcc);
+
+        // 3. Clone stocks for this account
+        const sourceStocks = state.stocks.filter(s => s.accountId === oldAcc.id);
+        sourceStocks.forEach(oldStock => {
+            const newStockId = 's_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+            const newStock = { ...oldStock, id: newStockId, accountId: newAccId };
+            state.stocks.push(newStock);
+        });
+    });
+
+    updateUI();
+    showToast(`${sourceProfile.name} をコピーしました`);
+}
+
+function deleteProfile(id) {
+    if (state.profiles.length <= 1) return;
+    if (!confirm('このプロファイルを削除しますか？関連するデータも全て削除されます。')) return;
+    
+    // Scoped reset first
+    resetProfile(id, false);
+    
+    state.profiles = state.profiles.filter(p => p.id !== id);
+    if (state.currentProfileId === id) {
+        state.currentProfileId = state.profiles[0].id;
+    }
+    updateUI();
+}
+
+function resetProfile(id = state.currentProfileId, ask = true) {
+    if (ask && !confirm('現在のプロファイルの全データを消去しますか？この操作は取り消せません。')) return;
+    
+    const accs = state.accounts.filter(a => a.profileId === id);
+    const accIds = accs.map(a => a.id);
+    
+    state.stocks = state.stocks.filter(s => !accIds.includes(s.accountId));
+    state.accounts = state.accounts.filter(a => a.profileId !== id);
+    
+    updateUI();
+    if (ask) showToast('データをリセットしました');
+    saveData();
+}
+
 function getStockDisplayNames(s) {
     if (!s) return { primary: 'Unknown', secondary: '' };
     // Numeric ticker (usually Japanese stocks like 7203.T)
@@ -126,7 +265,8 @@ function getStockDisplayNames(s) {
 
 function calculateTotalAssets() {
     let total = 0;
-    state.stocks.forEach(s => {
+    const stocks = getProfileStocks();
+    stocks.forEach(s => {
         const price = s.currentPrice || s.purchasePrice;
         const val = price * s.shares;
         total += (s.currency === 'USD' ? val * state.settings.exchangeRate : val);
@@ -146,8 +286,10 @@ function renderChart() {
     const dataMap = {};
     let grandTotal = 0;
 
-    state.stocks.forEach(s => {
-        const acc = state.accounts.find(a => a.id === s.accountId);
+    const stocks = getProfileStocks();
+    const accounts = getProfileAccounts();
+    stocks.forEach(s => {
+        const acc = accounts.find(a => a.id === s.accountId);
         const names = getStockDisplayNames(s);
         const label = chartType === 'ticker' ? names.primary : (acc ? acc.name : 'Unknown');
         const price = s.currentPrice || s.purchasePrice;
@@ -264,13 +406,16 @@ function renderAccountList() {
     if (!listEl) return;
     listEl.innerHTML = '';
 
-    state.accounts.forEach(acc => {
-        let accTotal = 0;
-        state.stocks.filter(s => s.accountId === acc.id).forEach(s => {
-            const val = s.purchasePrice * s.shares;
-            accTotal += (s.currency === 'USD' ? val * state.settings.exchangeRate : val);
-        });
+    const currentAccounts = getProfileAccounts();
+    const currentStocks = getProfileStocks();
 
+    currentAccounts.forEach(acc => {
+        const accStocks = currentStocks.filter(s => s.accountId === acc.id);
+        const accTotal = accStocks.reduce((sum, s) => {
+            const p = s.currentPrice || s.purchasePrice;
+            const v = p * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+            return sum + v;
+        }, 0);
         const div = document.createElement('div');
         div.className = 'account-card';
         div.innerHTML = `
@@ -295,15 +440,18 @@ function renderStockList() {
     if (!listEl) return;
     listEl.innerHTML = '';
 
+    const currentStocks = getProfileStocks();
+    const currentAccounts = getProfileAccounts();
+
     // Sort stocks by total value descending
-    const sortedStocks = [...state.stocks].sort((a, b) => {
+    const sortedStocks = [...currentStocks].sort((a, b) => {
         const valA = (a.currentPrice || a.purchasePrice) * a.shares * (a.currency === 'USD' ? state.settings.exchangeRate : 1);
         const valB = (b.currentPrice || b.purchasePrice) * b.shares * (b.currency === 'USD' ? state.settings.exchangeRate : 1);
         return valB - valA;
     });
 
     sortedStocks.forEach(s => {
-        const acc = state.accounts.find(a => a.id === s.accountId);
+        const acc = currentAccounts.find(a => a.id === s.accountId);
         const names = getStockDisplayNames(s);
         const price = s.currentPrice || s.purchasePrice;
         const total = price * s.shares;
@@ -399,7 +547,7 @@ function addAccount() {
         }
         editingAccountId = null;
     } else {
-        const newAcc = { id: 'acc_' + Date.now(), name, icon };
+        const newAcc = { id: 'acc_' + Date.now(), name, icon, profileId: state.currentProfileId };
         state.accounts.push(newAcc);
         showToast('口座を追加しました');
     }
@@ -507,7 +655,8 @@ function populateAccountSelect() {
     const select = document.getElementById('stock-acc-id');
     if (!select) return;
     select.innerHTML = '';
-    state.accounts.forEach(acc => {
+    const currentAccounts = getProfileAccounts();
+    currentAccounts.forEach(acc => {
         const opt = document.createElement('option');
         opt.value = acc.id;
         opt.textContent = acc.name;
@@ -534,10 +683,13 @@ function showDrillDown(label) {
 
     detailBody.innerHTML = '';
     
+    const currentStocks = getProfileStocks();
+    const currentAccounts = getProfileAccounts();
+    
     // Determine display title and data
     // Try to find stocks by ticker OR name
-    const stocksByTicker = state.stocks.filter(s => s.ticker === label || s.name === label);
-    const account = state.accounts.find(a => a.name === label);
+    const stocksByTicker = currentStocks.filter(s => s.ticker === label || s.name === label);
+    const account = currentAccounts.find(a => a.name === label);
 
     if (stocksByTicker.length > 0) {
         const names = getStockDisplayNames(stocksByTicker[0]);
@@ -560,8 +712,8 @@ function showDrillDown(label) {
         // Recalculate grouping to find which stocks are "Other"
         const dataMap = {};
         let grandTotal = 0;
-        state.stocks.forEach(s => {
-            const acc = state.accounts.find(a => a.id === s.accountId);
+        currentStocks.forEach(s => {
+            const acc = currentAccounts.find(a => a.id === s.accountId);
             const names = getStockDisplayNames(s);
             const l = chartType === 'ticker' ? names.primary : (acc ? acc.name : 'Unknown');
             const price = s.currentPrice || s.purchasePrice;
@@ -581,8 +733,8 @@ function showDrillDown(label) {
         });
 
         // Find all stocks matching these labels
-        const otherStocks = state.stocks.filter(s => {
-            const acc = state.accounts.find(a => a.id === s.accountId);
+        const otherStocks = currentStocks.filter(s => {
+            const acc = currentAccounts.find(a => a.id === s.accountId);
             const names = getStockDisplayNames(s);
             const l = chartType === 'ticker' ? names.primary : (acc ? acc.name : 'Unknown');
             return otherLabels.has(l);
@@ -667,11 +819,11 @@ function showDrillDown(label) {
             <div class="input-info" style="margin-top: -10px">※複数の口座に跨る場合は合算値を表示しています。</div>
         `;
     } else if (showAccountView) {
-        // Show Account detail (Total + Chart + List)
-        const account = state.accounts.find(a => a.name === label);
-        if (!account) return;
+        // Show Account Detail (List stocks in this account)
+        const accStocks = currentStocks.filter(s => s.accountId === account.id);
+        detailTitle.textContent = `${account.icon} ${account.name}`;
 
-        const accountStocks = state.stocks.filter(s => s.accountId === account.id);
+        const accountStocks = currentStocks.filter(s => s.accountId === account.id);
         let accountTotal = 0;
         const accountDataMap = {};
 
@@ -885,12 +1037,6 @@ async function fetchStockPrices() {
             console.warn(`Stock fetch failed for ${symbol}`, e);
         }
     }
-}
-
-function resetData() {
-    if (!confirm('全てのデータを削除して初期化しますか？')) return;
-    state = { accounts: [], stocks: [], settings: { exchangeRate: 150 } };
-    updateUI();
 }
 
 // --- 5. Initial Load ---

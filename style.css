@@ -41,6 +41,61 @@ header {
   align-items: center;
 }
 
+.header-main {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.profile-select {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid var(--glass-border);
+  color: var(--text-main);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  width: fit-content;
+  cursor: pointer;
+  outline: none;
+}
+
+.profile-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.profile-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  background: var(--glass-bg);
+  border-radius: 10px;
+  border: 1px solid var(--glass-border);
+}
+
+.profile-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-grow: 1;
+}
+
+.profile-name-input {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 0.95rem;
+  font-family: inherit;
+  width: 100%;
+}
+
+.profile-name-input:focus {
+  border-bottom: 1px solid var(--primary);
+  outline: none;
+}
+
 header h1 {
   margin: 0;
   font-size: clamp(1.2rem, 5vw, 1.5rem);

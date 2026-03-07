@@ -14,7 +14,10 @@
 <body>
     <div id="app">
         <header>
-            <h1>AssetFolio β</h1>
+            <div class="header-main">
+                <h1>AssetFolio β</h1>
+                <select id="profile-switcher" class="profile-select" onchange="switchProfile(this.value)"></select>
+            </div>
             <div class="header-actions">
                 <span id="last-updated" class="last-updated">未更新</span>
                 <button id="refresh-btn" class="refresh-btn" onclick="fetchAllData()">
@@ -84,9 +87,20 @@
                         <span> JPY</span>
                     </div>
                 </div>
+
+                <div class="card">
+                    <h3>プロファイル管理</h3>
+                    <div id="profile-list" class="profile-list"></div>
+                    <div class="input-group" style="margin-top: 15px;">
+                        <input type="text" id="new-profile-name" placeholder="新しいプロファイル名">
+                        <button class="btn-primary" onclick="addProfile()">追加</button>
+                    </div>
+                </div>
+
                 <div class="card danger-zone">
                     <h3>データリセット</h3>
-                    <button class="btn-danger" onclick="resetData()">全データを削除</button>
+                    <div class="input-info" style="margin-bottom: 10px;">選択中のプロファイルの全データを消去します。</div>
+                    <button class="btn-danger" onclick="resetProfile()">現在のプロファイルをリセット</button>
                 </div>
             </section>
         </main>
