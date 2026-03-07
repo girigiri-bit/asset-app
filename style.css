@@ -394,6 +394,87 @@ input, select {
 }
 .input-group input { margin-bottom: 0; flex: 1; }
 
+/* Detail Modal Premium Styles */
+.modal-detail-content {
+  max-width: 440px;
+  max-height: 85vh;
+  overflow-y: auto;
+  position: relative;
+  padding-top: 50px !important;
+}
+
+.modal-detail-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  padding: 15px 25px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(30, 30, 30, 0.8);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--glass-border);
+  z-index: 10;
+}
+
+.modal-detail-header h3 { margin: 0; font-size: 1.1rem; }
+
+.btn-close-modal {
+  background: none;
+  border: none;
+  color: var(--text-sub);
+  font-size: 1.8rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.detail-body {
+  margin-top: 10px;
+}
+
+.detail-stat-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: 25px;
+}
+
+.stat-card {
+  background: var(--glass-bg);
+  padding: 15px;
+  border-radius: 12px;
+  border: 1px solid var(--glass-border);
+}
+
+.stat-label {
+  font-size: 0.75rem;
+  color: var(--text-sub);
+  margin-bottom: 5px;
+}
+
+.stat-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.detail-stock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chart-list-item {
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+
+.chart-list-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+}
+
 .acc-actions {
   display: flex;
   align-items: center;

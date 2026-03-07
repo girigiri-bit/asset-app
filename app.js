@@ -155,6 +155,7 @@ function renderChart() {
             const color = colors[i % colors.length];
             const listItem = document.createElement('div');
             listItem.className = 'chart-list-item';
+            listItem.onclick = () => showDrillDown(item.label);
             listItem.innerHTML = `
                 <div class="cli-label">
                     <span class="cli-dot" style="background: ${color}"></span>
@@ -183,6 +184,13 @@ function renderChart() {
             responsive: true,
             maintainAspectRatio: false,
             cutout: '70%',
+            onClick: (event, elements) => {
+                if (elements.length > 0) {
+                    const index = elements[0].index;
+                    const label = labels[index];
+                    showDrillDown(label);
+                }
+            },
             plugins: {
                 legend: { display: false },
                 datalabels: {
@@ -377,7 +385,97 @@ function updateExchangeRate(val) {
     updateUI();
 }
 
-// --- 5. Real-Time Data Fetching ---
+// --- 6. Drill-Down detail view ---
+
+function showDrillDown(label) {
+    const detailTitle = document.getElementById('detail-title');
+    const detailBody = document.getElementById('detail-body');
+    if (!detailTitle || !detailBody) return;
+
+    detailBody.innerHTML = '';
+    detailTitle.textContent = label;
+
+    // Check if label is a stock (existing in our ticker list) or an account
+    const isTicker = chartType === 'ticker' && label !== 'その他';
+    const isAccount = chartType === 'account' && label !== 'その他';
+
+    if (isTicker) {
+        // Show Stock Detail (Sum stats)
+        const stocks = state.stocks.filter(s => s.ticker === label);
+        if (stocks.length === 0) return;
+
+        // Aggregate stats (could be across multiple accounts)
+        let totalShares = 0;
+        let avgCost = 0;
+        let totalCost = 0;
+        let totalVal = 0;
+        let currency = stocks[0].currency;
+
+        stocks.forEach(s => {
+            totalShares += s.shares;
+            totalCost += s.purchasePrice * s.shares;
+            const current = s.currentPrice || s.purchasePrice;
+            totalVal += current * s.shares;
+        });
+        avgCost = totalCost / totalShares;
+
+        const diff = totalVal - totalCost;
+        const diffPct = ((totalVal / totalCost - 1) * 100).toFixed(2);
+        const color = diff >= 0 ? '#4caf50' : '#ff4d4d';
+
+        detailBody.innerHTML = `
+            <div class="detail-stat-grid">
+                <div class="stat-card">
+                    <div class="stat-label">評価額</div>
+                    <div class="stat-value">¥${Math.floor(currency === 'USD' ? totalVal * state.settings.exchangeRate : totalVal).toLocaleString()}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">損益</div>
+                    <div class="stat-value" style="color: ${color}">¥${Math.floor(currency === 'USD' ? diff * state.settings.exchangeRate : diff).toLocaleString()} (${diffPct}%)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">保有数</div>
+                    <div class="stat-value">${totalShares.toLocaleString()}株</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">取得単価</div>
+                    <div class="stat-value">${currency === 'USD' ? '$' : '¥'}${avgCost.toFixed(2)}</div>
+                </div>
+            </div>
+            <div class="input-info" style="margin-top: -10px">※複数の口座に跨る場合は合算値を表示しています。</div>
+        `;
+    } else if (isAccount) {
+        // Show Account detail (list of stocks)
+        const account = state.accounts.find(a => a.name === label);
+        if (!account) return;
+
+        const stocks = state.stocks.filter(s => s.accountId === account.id);
+        
+        let html = `<div class="detail-stock-list">`;
+        stocks.forEach(s => {
+            const price = s.currentPrice || s.purchasePrice;
+            const totalJPY = (price * s.shares) * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+            html += `
+                <div class="stock-item" style="margin: 0">
+                    <div class="stock-main">
+                        <span class="stock-t">${s.ticker}</span>
+                    </div>
+                    <div class="stock-info">
+                        <div class="stock-v">¥${Math.floor(totalJPY).toLocaleString()}</div>
+                        <div class="stock-p">${s.shares}株 (${s.currency})</div>
+                    </div>
+                </div>
+            `;
+        });
+        html += `</div>`;
+        detailBody.innerHTML = html;
+    } else {
+        // "Others" or other cases
+        detailBody.innerHTML = `<p style="color: var(--text-sub); text-align: center; padding: 20px;">詳細は個別銘柄または口座を選択してください。</p>`;
+    }
+
+    showModal('modal-detail');
+}
 
 async function fetchAllData() {
     const btn = document.getElementById('refresh-btn');
