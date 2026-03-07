@@ -283,8 +283,9 @@ header h1 {
 }
 
 .stock-main { display: flex; flex-direction: column; }
-.stock-t { font-weight: 700; font-size: 1.1rem; }
-.stock-acc { font-size: 0.75rem; color: var(--text-sub); }
+.stock-t { font-weight: 700; font-size: 1rem; color: #fff; }
+.stock-tick { font-size: 0.7rem; color: var(--text-sub); opacity: 0.8; }
+.stock-acc { display: none; }
 .stock-v { font-weight: 700; text-align: right; }
 .stock-p { font-size: 0.75rem; color: var(--text-sub); text-align: right; }
 

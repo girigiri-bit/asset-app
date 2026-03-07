@@ -32,21 +32,39 @@ function mergeDuplicateAccounts() {
         }
     });
 
-    if (duplicates.length === 0) return;
+    if (duplicates.length > 0) {
+        // Remove duplicates from accounts
+        const duplicateIds = duplicates.map(d => d.oldId);
+        state.accounts = state.accounts.filter(acc => !duplicateIds.includes(acc.id));
 
-    // Remove duplicates from accounts
-    const duplicateIds = duplicates.map(d => d.oldId);
-    state.accounts = state.accounts.filter(acc => !duplicateIds.includes(acc.id));
+        // Update stocks to point to primary account ID
+        state.stocks.forEach(s => {
+            const dup = duplicates.find(d => d.oldId === s.accountId);
+            if (dup) {
+                s.accountId = dup.newId;
+            }
+        });
+    }
 
-    // Update stocks to point to primary account ID
+    migrateStocks();
+    saveData();
+}
+
+function migrateStocks() {
+    let changed = false;
     state.stocks.forEach(s => {
-        const dup = duplicates.find(d => d.oldId === s.accountId);
-        if (dup) {
-            s.accountId = dup.newId;
+        // Fix 4-digit Japanese tickers missing .T
+        if (/^\d{4}$/.test(s.ticker)) {
+            const oldTicker = s.ticker;
+            s.ticker += '.T';
+            // Also reset name if it was just the ticker so it gets updated on fetch
+            if (!s.name || s.name === oldTicker) {
+                s.name = s.ticker;
+            }
+            changed = true;
         }
     });
-
-    saveData();
+    if (changed) fetchAllData();
 }
 
 function saveData() {
@@ -96,7 +114,7 @@ function renderChart() {
 
     state.stocks.forEach(s => {
         const acc = state.accounts.find(a => a.id === s.accountId);
-        const label = chartType === 'ticker' ? s.ticker : (acc ? acc.name : 'Unknown');
+        const label = chartType === 'ticker' ? (s.name || s.ticker) : (acc ? acc.name : 'Unknown');
         const price = s.currentPrice || s.purchasePrice;
         const val = price * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
         
@@ -260,8 +278,8 @@ function renderStockList() {
         div.className = 'stock-item';
         div.innerHTML = `
             <div class="stock-main">
-                <span class="stock-t">${s.ticker}</span>
-                <span class="stock-acc">${acc ? acc.name : 'Unknown'}</span>
+                <span class="stock-t">${s.name || s.ticker}</span>
+                <span class="stock-tick">${s.ticker} | ${acc ? acc.name : 'Unknown'}</span>
             </div>
             <div class="stock-info">
                 <div class="stock-v">¥${Math.floor(totalJPY).toLocaleString()}</div>
@@ -333,14 +351,31 @@ function addAccount() {
 
 function addStock() {
     const accId = document.getElementById('stock-acc-id').value;
-    const ticker = document.getElementById('stock-ticker').value;
+    let ticker = document.getElementById('stock-ticker').value.trim();
     const price = Number(document.getElementById('stock-price').value);
     const shares = Number(document.getElementById('stock-shares').value);
     const currency = document.getElementById('stock-currency').value;
 
     if (!ticker || !price || !shares) return showToast('全ての項目を入力してください');
 
-    const newStock = { id: 's_' + Date.now(), accountId: accId, ticker, purchasePrice: price, currentPrice: 0, shares, currency };
+    // Normalization: Uppercase English tickers
+    ticker = ticker.toUpperCase();
+    
+    // Japanese stock heuristic: If 4 digits, add .T
+    if (/^\d{4}$/.test(ticker)) {
+        ticker += '.T';
+    }
+
+    const newStock = { 
+        id: 's_' + Date.now(), 
+        accountId: accId, 
+        ticker, 
+        name: ticker, // Default to ticker until fetched
+        purchasePrice: price, 
+        currentPrice: 0, 
+        shares, 
+        currency 
+    };
     state.stocks.push(newStock);
     updateUI();
     hideModal('modal-add-stock');
@@ -348,7 +383,7 @@ function addStock() {
     document.getElementById('stock-price').value = '';
     document.getElementById('stock-shares').value = '';
     showToast('銘柄を追加しました');
-    fetchAllData(); // Try to fetch price for the new stock
+    fetchAllData(); // Try to fetch price and name for the new stock
 }
 
 function deleteStock(id) {
@@ -393,12 +428,14 @@ function showDrillDown(label) {
     if (!detailTitle || !detailBody) return;
 
     detailBody.innerHTML = '';
-    detailTitle.textContent = label;
+    
+    // Determine display title
+    const stocksByTicker = state.stocks.filter(s => s.ticker === label);
+    const companyName = stocksByTicker.length > 0 ? stocksByTicker[0].name : null;
+    detailTitle.textContent = companyName || label;
 
     // Detect type by data
     const account = state.accounts.find(a => a.name === label);
-    const stocksByTicker = state.stocks.filter(s => s.ticker === label);
-    
     // Predicate: which view to show?
     // If it's a known ticker, show ticker view. 
     // If it's a known account, show account view.
@@ -643,11 +680,13 @@ async function fetchStockPrices() {
             if (data && data.chart && data.chart.result && data.chart.result[0]) {
                 const meta = data.chart.result[0].meta;
                 const price = meta.regularMarketPrice;
+                const companyName = meta.longName || meta.shortName;
                 
-                if (price) {
+                if (price || companyName) {
                     state.stocks.forEach(s => {
                         if (s.ticker === symbol) {
-                            s.currentPrice = price;
+                            if (price) s.currentPrice = price;
+                            if (companyName) s.name = companyName;
                         }
                     });
                 }
