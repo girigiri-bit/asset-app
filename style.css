@@ -527,3 +527,11 @@ input, select {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
+
+.detail-subtitle {
+  font-size: 0.85rem;
+  color: var(--text-sub);
+  font-weight: 400;
+  margin-top: 4px;
+  opacity: 0.8;
+}

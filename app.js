@@ -90,6 +90,19 @@ function updateUI() {
     }
 }
 
+function getStockDisplayNames(s) {
+    if (!s) return { primary: 'Unknown', secondary: '' };
+    // Numeric ticker (usually Japanese stocks like 7203.T)
+    const isNumeric = /^\d/.test(s.ticker);
+    if (isNumeric) {
+        return { primary: s.name || s.ticker, secondary: s.ticker };
+    } else {
+        // Alphabetical ticker (usually Foreign stocks like AAPL)
+        // If name exists and is different from ticker, use ticker as primary
+        return { primary: s.ticker, secondary: (s.name && s.name !== s.ticker) ? s.name : '' };
+    }
+}
+
 function calculateTotalAssets() {
     let total = 0;
     state.stocks.forEach(s => {
@@ -114,7 +127,8 @@ function renderChart() {
 
     state.stocks.forEach(s => {
         const acc = state.accounts.find(a => a.id === s.accountId);
-        const label = chartType === 'ticker' ? (s.name || s.ticker) : (acc ? acc.name : 'Unknown');
+        const names = getStockDisplayNames(s);
+        const label = chartType === 'ticker' ? names.primary : (acc ? acc.name : 'Unknown');
         const price = s.currentPrice || s.purchasePrice;
         const val = price * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
         
@@ -266,6 +280,7 @@ function renderStockList() {
 
     sortedStocks.forEach(s => {
         const acc = state.accounts.find(a => a.id === s.accountId);
+        const names = getStockDisplayNames(s);
         const price = s.currentPrice || s.purchasePrice;
         const total = price * s.shares;
         const totalJPY = s.currency === 'USD' ? total * state.settings.exchangeRate : total;
@@ -278,8 +293,8 @@ function renderStockList() {
         div.className = 'stock-item';
         div.innerHTML = `
             <div class="stock-main">
-                <span class="stock-t">${s.name || s.ticker}</span>
-                <span class="stock-tick">${s.ticker} | ${acc ? acc.name : 'Unknown'}</span>
+                <span class="stock-t">${names.primary}</span>
+                <span class="stock-tick">${names.secondary}${names.secondary ? ' | ' : ''}${acc ? acc.name : 'Unknown'}</span>
             </div>
             <div class="stock-info">
                 <div class="stock-v">¥${Math.floor(totalJPY).toLocaleString()}</div>
@@ -429,17 +444,22 @@ function showDrillDown(label) {
 
     detailBody.innerHTML = '';
     
-    // Determine display title
-    const stocksByTicker = state.stocks.filter(s => s.ticker === label);
-    const companyName = stocksByTicker.length > 0 ? stocksByTicker[0].name : null;
-    detailTitle.textContent = companyName || label;
-
-    // Detect type by data
+    // Determine display title and data
+    // Try to find stocks by ticker OR name
+    const stocksByTicker = state.stocks.filter(s => s.ticker === label || s.name === label);
     const account = state.accounts.find(a => a.name === label);
+
+    if (stocksByTicker.length > 0) {
+        const names = getStockDisplayNames(stocksByTicker[0]);
+        detailTitle.innerHTML = `
+            <div>${names.primary}</div>
+            <div class="detail-subtitle">${names.secondary}</div>
+        `;
+    } else {
+        detailTitle.textContent = label;
+    }
+
     // Predicate: which view to show?
-    // If it's a known ticker, show ticker view. 
-    // If it's a known account, show account view.
-    // If label matches both (rare), prefer chartType or ticker.
     const showTickerView = stocksByTicker.length > 0 && (chartType === 'ticker' || !account);
     const showAccountView = account && !showTickerView;
 
