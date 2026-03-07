@@ -50,10 +50,11 @@ function mergeDuplicateAccounts() {
     const duplicates = []; // list of ids to be merged into primary
 
     state.accounts.forEach(acc => {
-        if (!nameMap[acc.name]) {
-            nameMap[acc.name] = acc.id;
+        const key = `${acc.profileId || 'p_default'}_${acc.name}`;
+        if (!nameMap[key]) {
+            nameMap[key] = acc.id;
         } else {
-            duplicates.push({ oldId: acc.id, newId: nameMap[acc.name] });
+            duplicates.push({ oldId: acc.id, newId: nameMap[key] });
         }
     });
 
