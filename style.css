@@ -363,6 +363,13 @@ header h1 {
 
 .modal-content h3 { margin-top: 0; margin-bottom: 20px; }
 
+.input-label {
+  font-size: 0.75rem;
+  color: var(--text-sub);
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
 input, select {
   width: 100%;
   padding: 12px 15px;

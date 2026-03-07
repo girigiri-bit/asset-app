@@ -282,7 +282,7 @@ function renderAccountList() {
                 <div class="acc-amount"><span class="privacy-blur">¥${Math.floor(accTotal).toLocaleString()}</span></div>
                 <div class="acc-btns">
                     <button class="btn-icon-edit" onclick="openEditAccountModal('${acc.id}')">✏️</button>
-                    <button class="btn-delete-x" onclick="deleteAccount('${acc.id}')">×</button>
+                    <button class="btn-delete-x" onclick="deleteAccount('${acc.id}')">🗑️</button>
                 </div>
             </div>
         `;

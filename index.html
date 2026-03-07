@@ -126,15 +126,20 @@
         <div id="modal-add-stock" class="modal-overlay">
             <div class="modal-content">
                 <h3>銘柄を追加</h3>
-                <select id="stock-acc-id"></select>
-                <input type="text" id="stock-ticker" placeholder="銘柄コード/ティッカー (例: AAPL)">
-                <input type="number" id="stock-price" placeholder="買付単価 (平均)">
-                <input type="number" id="stock-shares" placeholder="保有数量">
+                <div class="input-label">銘柄コード/ティッカー</div>
+                <input type="text" id="stock-ticker" placeholder="例: AAPL">
+                <div class="input-label">買付単価 (平均)</div>
+                <input type="number" id="stock-price" placeholder="例: 150">
+                <div class="input-label">保有数量</div>
+                <input type="number" id="stock-shares" placeholder="例: 10">
                 <div class="input-info">株価は自動取得を試みますが、手動入力は参考値として保存されます。</div>
+                <div class="input-label">通貨</div>
                 <select id="stock-currency">
                     <option value="JPY">JPY (円)</option>
                     <option value="USD">USD (ドル)</option>
                 </select>
+                <div class="input-label">保管口座</div>
+                <select id="stock-acc-id"></select>
                 <div class="modal-actions">
                     <button class="btn-secondary" onclick="hideModal('modal-add-stock')">キャンセル</button>
                     <button class="btn-primary" onclick="addStock()">保存</button>
