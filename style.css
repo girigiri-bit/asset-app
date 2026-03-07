@@ -401,22 +401,23 @@ input, select {
   max-height: 85vh;
   overflow-y: auto;
   position: relative;
-  padding-top: 50px !important;
+  padding: 0 !important; /* Header will provide padding/space */
+  display: flex;
+  flex-direction: column;
 }
 
 .modal-detail-header {
-  position: absolute;
-  top: 0;
-  left: 0;
   width: 100%;
   padding: 15px 25px;
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: rgba(30, 30, 30, 0.8);
+  background: rgba(30, 30, 30, 0.95);
   backdrop-filter: blur(10px);
   border-bottom: 1px solid var(--glass-border);
   z-index: 10;
+  position: sticky;
+  top: 0;
 }
 
 .modal-detail-header h3 { margin: 0; font-size: 1.1rem; }
@@ -431,7 +432,7 @@ input, select {
 }
 
 .detail-body {
-  margin-top: 10px;
+  padding: 20px 25px;
 }
 
 .detail-stat-grid {
