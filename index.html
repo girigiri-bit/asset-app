@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AssetFolio β</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+</head>
+<body>
+    <div id="app">
+        <header>
+            <h1>AssetFolio β</h1>
+        </header>
+
+        <main>
+            <section id="screen-dashboard" class="screen active">
+                <div class="card total-assets-card">
+                    <h3>総資産推定額</h3>
+                    <div id="totalJPY" class="amount-display">
+                        <span class="currency-unit">¥</span>
+                        <span class="amount-value">0</span>
+                    </div>
+                    <div class="sub-info" id="changeInfo">
+                        前日比 +0 (+0.0%)<br>
+                        購入比 +0 (+0.0%)
+                    </div>
+                </div>
+
+                <div class="card chart-card">
+                    <div class="card-header">
+                        <h3>資産配分 / Allocation</h3>
+                        <div class="chart-tabs">
+                            <button class="chart-tab active" onclick="switchChart('ticker')">銘柄別</button>
+                            <button class="chart-tab" onclick="switchChart('account')">口座別</button>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="allocationChart"></canvas>
+                    </div>
+                </div>
+
+                <div class="account-list-section">
+                    <h3>口座一覧</h3>
+                    <div id="accountList" class="account-grid"></div>
+                    <button class="add-btn-large" onclick="showModal('modal-add-account')">+ 口座を追加</button>
+                </div>
+            </section>
+
+            <section id="screen-portfolio" class="screen">
+                <h2>保有銘柄一覧</h2>
+                <div id="stockList" class="stock-list-container"></div>
+            </section>
+
+            <section id="screen-settings" class="screen">
+                <h2>設定</h2>
+                <div class="card">
+                    <h3>為替レート設定</h3>
+                    <div class="input-group">
+                        <label>1 USD = </label>
+                        <input type="number" id="setting-exchange-rate" step="0.1" value="150" onchange="updateExchangeRate(this.value)">
+                        <span> JPY</span>
+                    </div>
+                </div>
+                <div class="card danger-zone">
+                    <h3>データリセット</h3>
+                    <button class="btn-danger" onclick="resetData()">全データを削除</button>
+                </div>
+            </section>
+        </main>
+
+        <nav class="bottom-nav">
+            <button class="nav-item active" id="nav-dashboard" onclick="switchScreen('dashboard')">
+                <span class="nav-icon">🏠</span>
+                <span class="nav-text">ホーム</span>
+            </button>
+            <button class="nav-item" id="nav-portfolio" onclick="switchScreen('portfolio')">
+                <span class="nav-icon">📊</span>
+                <span class="nav-text">資産</span>
+            </button>
+            <button class="nav-item add-main-btn" onclick="showModal('modal-add-stock')">
+                <span class="nav-icon-plus">+</span>
+                <span class="nav-text">追加</span>
+            </button>
+            <button class="nav-item" id="nav-settings" onclick="switchScreen('settings')">
+                <span class="nav-icon">⚙️</span>
+                <span class="nav-text">設定</span>
+            </button>
+        </nav>
+
+        <!-- Modals -->
+        <div id="modal-add-account" class="modal-overlay">
+            <div class="modal-content">
+                <h3>口座を追加</h3>
+                <input type="text" id="acc-name" placeholder="口座名 (例: 楽天証券)">
+                <input type="text" id="acc-icon" placeholder="アイコン (例: 🏦)">
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="hideModal('modal-add-account')">キャンセル</button>
+                    <button class="btn-primary" onclick="addAccount()">保存</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="modal-add-stock" class="modal-overlay">
+            <div class="modal-content">
+                <h3>銘柄を追加</h3>
+                <select id="stock-acc-id"></select>
+                <input type="text" id="stock-ticker" placeholder="銘柄コード/ティッカー (例: AAPL)">
+                <input type="number" id="stock-price" placeholder="現在価格/買付価格">
+                <input type="number" id="stock-shares" placeholder="保有数量">
+                <select id="stock-currency">
+                    <option value="JPY">JPY (円)</option>
+                    <option value="USD">USD (ドル)</option>
+                </select>
+                <div class="modal-actions">
+                    <button class="btn-secondary" onclick="hideModal('modal-add-stock')">キャンセル</button>
+                    <button class="btn-primary" onclick="addStock()">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

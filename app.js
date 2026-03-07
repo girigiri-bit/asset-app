@@ -1,0 +1,265 @@
+// --- 1. Initialization and State ---
+if (typeof ChartDataLabels !== 'undefined') {
+    Chart.register(ChartDataLabels);
+}
+
+let state = JSON.parse(localStorage.getItem('assetFolioDB')) || {
+    accounts: [
+        { id: 'acc1', name: 'メイン口座', icon: '🏦' }
+    ],
+    stocks: [
+        { id: 's1', accountId: 'acc1', ticker: 'AAPL', purchasePrice: 180, shares: 10, currency: 'USD' },
+        { id: 's2', accountId: 'acc1', ticker: '7203.T', purchasePrice: 3000, shares: 100, currency: 'JPY' }
+    ],
+    settings: { exchangeRate: 150 }
+};
+
+let allocationChart = null;
+let chartType = 'ticker';
+
+// --- 2. Core Functions ---
+
+function saveData() {
+    localStorage.setItem('assetFolioDB', JSON.stringify(state));
+}
+
+function updateUI() {
+    saveData();
+    calculateTotalAssets();
+    renderAccountList();
+    renderStockList();
+    renderChart();
+    populateAccountSelect();
+    
+    // Update settings UI
+    const rateInput = document.getElementById('setting-exchange-rate');
+    if (rateInput) rateInput.value = state.settings.exchangeRate;
+}
+
+function calculateTotalAssets() {
+    let total = 0;
+    state.stocks.forEach(s => {
+        const val = s.purchasePrice * s.shares;
+        total += (s.currency === 'USD' ? val * state.settings.exchangeRate : val);
+    });
+
+    const totalEl = document.querySelector('#totalJPY .amount-value');
+    if (totalEl) totalEl.textContent = Math.floor(total).toLocaleString();
+}
+
+// --- 3. Rendering ---
+
+function renderChart() {
+    const canvas = document.getElementById('allocationChart');
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    const dataMap = {};
+    let grandTotal = 0;
+
+    state.stocks.forEach(s => {
+        const acc = state.accounts.find(a => a.id === s.accountId);
+        const label = chartType === 'ticker' ? s.ticker : (acc ? acc.name : 'Unknown');
+        const val = s.purchasePrice * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+        
+        dataMap[label] = (dataMap[label] || 0) + val;
+        grandTotal += val;
+    });
+
+    if (allocationChart) allocationChart.destroy();
+    if (grandTotal === 0) return;
+
+    allocationChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: Object.keys(dataMap),
+            datasets: [{
+                data: Object.values(dataMap),
+                backgroundColor: ['#bf0000', '#eb0a0a', '#ffffff', '#333333', '#666666'],
+                borderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            cutout: '70%',
+            plugins: {
+                legend: { display: false },
+                datalabels: {
+                    color: '#ffffff',
+                    font: { weight: 'bold', size: 10 },
+                    formatter: (value) => {
+                        const pct = (value / grandTotal * 100).toFixed(1);
+                        return pct > 5 ? `${pct}%` : '';
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderAccountList() {
+    const listEl = document.getElementById('accountList');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    state.accounts.forEach(acc => {
+        let accTotal = 0;
+        state.stocks.filter(s => s.accountId === acc.id).forEach(s => {
+            const val = s.purchasePrice * s.shares;
+            accTotal += (s.currency === 'USD' ? val * state.settings.exchangeRate : val);
+        });
+
+        const div = document.createElement('div');
+        div.className = 'account-card';
+        div.innerHTML = `
+            <div class="acc-info">
+                <span class="acc-icon">${acc.icon || '🏦'}</span>
+                <span class="acc-name">${acc.name}</span>
+            </div>
+            <div class="acc-actions">
+                <div class="acc-amount">¥${Math.floor(accTotal).toLocaleString()}</div>
+                <button class="btn-delete-x" onclick="deleteAccount('${acc.id}')">×</button>
+            </div>
+        `;
+        listEl.appendChild(div);
+    });
+}
+
+function renderStockList() {
+    const listEl = document.getElementById('stockList');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    state.stocks.forEach(s => {
+        const acc = state.accounts.find(a => a.id === s.accountId);
+        const total = s.purchasePrice * s.shares;
+        const totalJPY = s.currency === 'USD' ? total * state.settings.exchangeRate : total;
+
+        const div = document.createElement('div');
+        div.className = 'stock-item';
+        div.innerHTML = `
+            <div class="stock-main">
+                <span class="stock-t">${s.ticker}</span>
+                <span class="stock-acc">${acc ? acc.name : 'Unknown'}</span>
+            </div>
+            <div class="stock-info">
+                <div class="stock-v">¥${Math.floor(totalJPY).toLocaleString()}</div>
+                <div class="stock-p">${s.shares}株 @ ${s.currency === 'USD' ? '$' : '¥'}${s.purchasePrice}</div>
+            </div>
+            <button class="btn-delete-small" onclick="deleteStock('${s.id}')" style="grid-column: span 2; margin-top: 10px; background: none; border: none; color: #ff4d4d; cursor: pointer; text-align: left; font-size: 0.7rem;">削除する</button>
+        `;
+        listEl.appendChild(div);
+    });
+}
+
+// --- 4. Actions ---
+
+function switchScreen(screenId) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(`screen-${screenId}`).classList.add('active');
+    
+    document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+    document.getElementById(`nav-${screenId}`).classList.add('active');
+}
+
+function switchChart(type) {
+    chartType = type;
+    document.querySelectorAll('.chart-tab').forEach(btn => {
+        btn.classList.toggle('active', (type === 'ticker' && btn.innerText.includes('銘柄')) || (type === 'account' && btn.innerText.includes('口座')));
+    });
+    renderChart();
+}
+
+function showModal(id) { document.getElementById(id).style.display = 'flex'; }
+function hideModal(id) { document.getElementById(id).style.display = 'none'; }
+
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add('show'), 100);
+    setTimeout(() => {
+        toast.classList.remove('show');
+        setTimeout(() => toast.remove(), 300);
+    }, 3000);
+}
+
+// Override alerts with toasts
+function addAccount() {
+    const name = document.getElementById('acc-name').value;
+    const icon = document.getElementById('acc-icon').value || '🏦';
+    if (!name) return showToast('口座名を入力してください');
+
+    const newAcc = { id: 'acc_' + Date.now(), name, icon };
+    state.accounts.push(newAcc);
+    updateUI();
+    hideModal('modal-add-account');
+    document.getElementById('acc-name').value = '';
+    showToast('口座を追加しました');
+}
+
+function addStock() {
+    const accId = document.getElementById('stock-acc-id').value;
+    const ticker = document.getElementById('stock-ticker').value;
+    const price = Number(document.getElementById('stock-price').value);
+    const shares = Number(document.getElementById('stock-shares').value);
+    const currency = document.getElementById('stock-currency').value;
+
+    if (!ticker || !price || !shares) return showToast('全ての項目を入力してください');
+
+    const newStock = { id: 's_' + Date.now(), accountId: accId, ticker, purchasePrice: price, shares, currency };
+    state.stocks.push(newStock);
+    updateUI();
+    hideModal('modal-add-stock');
+    document.getElementById('stock-ticker').value = '';
+    document.getElementById('stock-price').value = '';
+    document.getElementById('stock-shares').value = '';
+    showToast('銘柄を追加しました');
+}
+
+function deleteStock(id) {
+    if (!confirm('銘柄を削除しますか？')) return;
+    state.stocks = state.stocks.filter(s => s.id !== id);
+    updateUI();
+    showToast('銘柄を削除しました');
+}
+
+function deleteAccount(id) {
+    if (state.stocks.some(s => s.accountId === id)) {
+        return showToast('この口座には銘柄が登録されているため削除できません');
+    }
+    if (!confirm('口座を削除しますか？')) return;
+    state.accounts = state.accounts.filter(a => a.id !== id);
+    updateUI();
+    showToast('口座を削除しました');
+}
+
+function populateAccountSelect() {
+    const select = document.getElementById('stock-acc-id');
+    if (!select) return;
+    select.innerHTML = '';
+    state.accounts.forEach(acc => {
+        const opt = document.createElement('option');
+        opt.value = acc.id;
+        opt.textContent = acc.name;
+        select.appendChild(opt);
+    });
+}
+
+function updateExchangeRate(val) {
+    state.settings.exchangeRate = Number(val);
+    updateUI();
+}
+
+function resetData() {
+    if (!confirm('全てのデータを削除して初期化しますか？')) return;
+    state = { accounts: [], stocks: [], settings: { exchangeRate: 150 } };
+    updateUI();
+}
+
+// --- 5. Initial Load ---
+window.onload = () => {
+    updateUI();
+};
