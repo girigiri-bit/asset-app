@@ -952,7 +952,9 @@ if (typeof ChartDataLabels !== 'undefined') {
     Chart.register(ChartDataLabels);
 }
 
-let state = JSON.parse(localStorage.getItem('assetFolioDB')) || {
+// SAFE STATE INITIALIZATION
+let state;
+const defaultState = {
     profiles: [{ id: 'p_default', name: '本人' }],
     currentProfileId: 'p_default',
     accounts: [
@@ -966,79 +968,26 @@ let state = JSON.parse(localStorage.getItem('assetFolioDB')) || {
     settings: { exchangeRate: 150, privacyMode: false }
 };
 
-if (!state.profiles) {
-    state.profiles = [{ id: 'p_default', name: '本人' }];
-    state.currentProfileId = 'p_default';
-}
-if (!state.currentProfileId) {
-    state.currentProfileId = state.profiles[0].id;
-}
-state.accounts.forEach(acc => {
-    if (!acc.profileId) acc.profileId = 'p_default';
-});
-
-function getProfileAccounts(profileId = state.currentProfileId) {
-    return state.accounts.filter(a => a.profileId === profileId);
+try {
+    const saved = localStorage.getItem('assetFolioDB');
+    state = saved ? JSON.parse(saved) : defaultState;
+} catch (e) {
+    console.warn("Storage blocked, using default state", e);
+    state = defaultState;
 }
 
-function getProfileStocks(profileId = state.currentProfileId) {
-    const accIds = state.accounts.filter(a => a.profileId === profileId).map(a => a.id);
-    return state.stocks.filter(s => accIds.includes(s.accountId));
-}
-
-let allocationChart = null;
-let chartType = 'ticker';
-let editingAccountId = null;
-let editingStockId = null;
-
-function mergeDuplicateAccounts() {
-    const nameMap = {};
-    const duplicates = [];
-    state.accounts.forEach(acc => {
-        const key = `${acc.profileId || 'p_default'}_${acc.name}`;
-        if (!nameMap[key]) {
-            nameMap[key] = acc.id;
-        } else {
-            duplicates.push({ oldId: acc.id, newId: nameMap[key] });
-        }
-    });
-
-    if (duplicates.length > 0) {
-        const duplicateIds = duplicates.map(d => d.oldId);
-        state.accounts = state.accounts.filter(acc => !duplicateIds.includes(acc.id));
-        state.stocks.forEach(s => {
-            const dup = duplicates.find(d => d.oldId === s.accountId);
-            if (dup) {
-                s.accountId = dup.newId;
-            }
-        });
-    }
-    migrateStocks();
-    saveData();
-}
-
-function migrateStocks() {
-    let changed = false;
-    state.stocks.forEach(s => {
-        const oldTicker = s.ticker;
-        s.ticker = s.ticker.toUpperCase();
-        if (/^\d{4}$/.test(s.ticker)) {
-            s.ticker += '.T';
-        }
-        if (s.ticker !== oldTicker) {
-            if (!s.name || s.name === oldTicker || s.name === oldTicker.toUpperCase()) {
-                s.name = s.ticker;
-            }
-            changed = true;
-        }
-    });
-    if (changed) {
-        saveData();
-    }
-}
+// Ensure critical arrays exist
+if (!state.profiles || state.profiles.length === 0) state.profiles = defaultState.profiles;
+if (!state.currentProfileId) state.currentProfileId = state.profiles[0].id;
+if (!state.accounts) state.accounts = defaultState.accounts;
+if (!state.stocks) state.stocks = defaultState.stocks;
 
 function saveData() {
-    localStorage.setItem('assetFolioDB', JSON.stringify(state));
+    try {
+        localStorage.setItem('assetFolioDB', JSON.stringify(state));
+    } catch (e) {
+        console.warn("Could not save to localStorage", e);
+    }
 }
 
 function updateUI() {
@@ -1760,7 +1709,32 @@ function updateExchangeRate(v) { state.settings.exchangeRate = Number(v); calcul
 function deleteAccount(id) { state.accounts = state.accounts.filter(a=>a.id!==id); updateUI(); }
 function showToast(m) { /* Simplified toast for prototype */ console.log(m); }
 
-window.onload = () => { mergeDuplicateAccounts(); updateUI(); fetchAllData(); };
+// GLOBAL TOUCH FIX FOR RESTRICTED PREVIEWS
+function applyTouchFix() {
+    // Force click events to fire on touchstart for all interactive elements
+    const targets = 'button, .chart-tab, .drill-downable, .nav-item, .add-main-btn, .cli-label, .chart-list-item';
+    document.querySelectorAll(targets).forEach(el => {
+        el.ontouchstart = function(e) {
+            // Only trigger if not a scroll
+            this.click();
+            e.preventDefault(); // Prevent double trigger
+        };
+    });
+}
+
+window.onload = () => { 
+    try {
+        mergeDuplicateAccounts(); 
+        updateUI(); 
+        fetchAllData(); 
+        applyTouchFix();
+    } catch (e) {
+        console.error("Initialization error", e);
+        // Fallback UI update if something breaks
+        populateProfileSwitcher();
+        calculateTotalAssets();
+    }
+};
     </script>
 </body>
 </html>
