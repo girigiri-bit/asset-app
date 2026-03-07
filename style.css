@@ -475,6 +475,17 @@ input, select {
   background: rgba(255, 255, 255, 0.05);
 }
 
+.drill-downable {
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.drill-downable:hover {
+  opacity: 0.8;
+  background: rgba(255, 255, 255, 0.03);
+  border-radius: 8px;
+}
+
 .acc-actions {
   display: flex;
   align-items: center;

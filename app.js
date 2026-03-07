@@ -395,13 +395,20 @@ function showDrillDown(label) {
     detailBody.innerHTML = '';
     detailTitle.textContent = label;
 
-    // Check if label is a stock (existing in our ticker list) or an account
-    const isTicker = chartType === 'ticker' && label !== 'その他';
-    const isAccount = chartType === 'account' && label !== 'その他';
+    // Detect type by data
+    const account = state.accounts.find(a => a.name === label);
+    const stocksByTicker = state.stocks.filter(s => s.ticker === label);
+    
+    // Predicate: which view to show?
+    // If it's a known ticker, show ticker view. 
+    // If it's a known account, show account view.
+    // If label matches both (rare), prefer chartType or ticker.
+    const showTickerView = stocksByTicker.length > 0 && (chartType === 'ticker' || !account);
+    const showAccountView = account && !showTickerView;
 
-    if (isTicker) {
+    if (showTickerView) {
         // Show Stock Detail (Sum stats)
-        const stocks = state.stocks.filter(s => s.ticker === label);
+        const stocks = stocksByTicker;
         if (stocks.length === 0) return;
 
         // Aggregate stats (could be across multiple accounts)
@@ -453,7 +460,7 @@ function showDrillDown(label) {
             </div>
             <div class="input-info" style="margin-top: -10px">※複数の口座に跨る場合は合算値を表示しています。</div>
         `;
-    } else if (isAccount) {
+    } else if (showAccountView) {
         // Show Account detail (Total + Chart + List)
         const account = state.accounts.find(a => a.name === label);
         if (!account) return;
@@ -513,7 +520,7 @@ function showDrillDown(label) {
                     const p = s.currentPrice || s.purchasePrice;
                     const v = p * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
                     return `
-                        <div class="stock-item" style="margin: 0">
+                        <div class="stock-item drill-downable" style="margin: 0" onclick="showDrillDown('${s.ticker}')">
                             <div class="stock-main">
                                 <span class="stock-t">${s.ticker}</span>
                             </div>
@@ -545,6 +552,13 @@ function showDrillDown(label) {
                     responsive: true,
                     maintainAspectRatio: false,
                     cutout: '70%',
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            const label = processedList[index].label;
+                            showDrillDown(label);
+                        }
+                    },
                     plugins: {
                         legend: { display: false },
                         datalabels: { display: false }
@@ -560,7 +574,7 @@ function showDrillDown(label) {
                 const color = colors[i % colors.length];
                 const div = document.createElement('div');
                 div.className = 'chart-list-item';
-                div.style.cursor = 'default';
+                div.onclick = () => showDrillDown(item.label);
                 div.innerHTML = `
                     <div class="cli-label">
                         <span class="cli-dot" style="background: ${color}"></span>
