@@ -769,8 +769,70 @@ function showDrillDown(label) {
     const showTickerView = stocksByTicker.length > 0 && (chartType === 'ticker' || !account);
     const showAccountView = account && !showTickerView;
     const isOther = label === 'その他';
+    const assetClasses = ['日本株', '外国株', '投資信託', '仮想通貨', '現金'];
+    const isAssetClass = assetClasses.includes(label);
 
-    if (isOther) {
+    if (isAssetClass) {
+        if (label === '現金') {
+            detailTitle.textContent = '現金内訳';
+            const cashAccounts = currentAccounts.filter(a => a.cashJPY > 0 || a.cashUSD > 0);
+            detailBody.innerHTML = `
+                <div class="detail-stock-list">
+                    ${cashAccounts.map(a => {
+                        const v = (a.cashJPY || 0) + (a.cashUSD || 0) * state.settings.exchangeRate;
+                        return `
+                            <div class="stock-item" style="margin: 0">
+                                <div class="stock-main">
+                                    <span class="stock-t">${a.icon} ${a.name}</span>
+                                </div>
+                                <div class="stock-info">
+                                    <div class="stock-v"><span class="privacy-blur">¥${Math.floor(v).toLocaleString()}</span></div>
+                                    <div class="stock-p">
+                                        ${a.cashJPY ? `¥${Math.floor(a.cashJPY).toLocaleString()}` : ''}
+                                        ${a.cashJPY && a.cashUSD ? ' / ' : ''}
+                                        ${a.cashUSD ? `$${a.cashUSD.toLocaleString()}` : ''}
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                    ${cashAccounts.length === 0 ? '<p style="text-align:center; padding:20px; color:var(--text-sub)">現金データはありません</p>' : ''}
+                </div>
+            `;
+        } else {
+            detailTitle.textContent = `${label} 一覧`;
+            const classStocks = currentStocks.filter(s => {
+                const sClass = s.assetClass || (s.ticker.includes('.T') ? '日本株' : '外国株');
+                return sClass === label;
+            }).sort((a,b) => {
+                const vA = (a.currentPrice || a.purchasePrice) * a.shares * (a.currency === 'USD' ? state.settings.exchangeRate : 1);
+                const vB = (b.currentPrice || b.purchasePrice) * b.shares * (b.currency === 'USD' ? state.settings.exchangeRate : 1);
+                return vB - vA;
+            });
+
+            detailBody.innerHTML = `
+                <div class="detail-stock-list">
+                    ${classStocks.map(s => {
+                        const p = s.currentPrice || s.purchasePrice;
+                        const v = p * s.shares * (s.currency === 'USD' ? state.settings.exchangeRate : 1);
+                        const names = getStockDisplayNames(s);
+                        return `
+                            <div class="stock-item drill-downable" style="margin: 0" onclick="showDrillDown('${names.primary}')">
+                                <div class="stock-main">
+                                    <span class="stock-t">${names.primary}</span>
+                                </div>
+                                <div class="stock-info">
+                                    <div class="stock-v"><span class="privacy-blur">¥${Math.floor(v).toLocaleString()}</span></div>
+                                    <div class="stock-p">${s.shares}株 (${s.currency})</div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                    ${classStocks.length === 0 ? '<p style="text-align:center; padding:20px; color:var(--text-sub)">該当する銘柄はありません</p>' : ''}
+                </div>
+            `;
+        }
+    } else if (isOther) {
         detailTitle.textContent = 'その他資産一覧';
         
         // Recalculate grouping to find which stocks are "Other"
