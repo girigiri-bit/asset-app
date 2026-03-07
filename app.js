@@ -19,6 +19,35 @@ let chartType = 'ticker';
 
 // --- 2. Core Functions ---
 
+function mergeDuplicateAccounts() {
+    const nameMap = {}; // name -> primaryId
+    const duplicates = []; // list of ids to be merged into primary
+
+    state.accounts.forEach(acc => {
+        if (!nameMap[acc.name]) {
+            nameMap[acc.name] = acc.id;
+        } else {
+            duplicates.push({ oldId: acc.id, newId: nameMap[acc.name] });
+        }
+    });
+
+    if (duplicates.length === 0) return;
+
+    // Remove duplicates from accounts
+    const duplicateIds = duplicates.map(d => d.oldId);
+    state.accounts = state.accounts.filter(acc => !duplicateIds.includes(acc.id));
+
+    // Update stocks to point to primary account ID
+    state.stocks.forEach(s => {
+        const dup = duplicates.find(d => d.oldId === s.accountId);
+        if (dup) {
+            s.accountId = dup.newId;
+        }
+    });
+
+    saveData();
+}
+
 function saveData() {
     localStorage.setItem('assetFolioDB', JSON.stringify(state));
 }
@@ -192,6 +221,15 @@ function addAccount() {
     const icon = document.getElementById('acc-icon').value || '🏦';
     if (!name) return showToast('口座名を入力してください');
 
+    // Check for duplicates
+    const existing = state.accounts.find(a => a.name === name);
+    if (existing) {
+        showToast('同名の口座が既に存在するため、既存の口座に追加されます');
+        hideModal('modal-add-account');
+        document.getElementById('acc-name').value = '';
+        return;
+    }
+
     const newAcc = { id: 'acc_' + Date.now(), name, icon };
     state.accounts.push(newAcc);
     updateUI();
@@ -261,5 +299,6 @@ function resetData() {
 
 // --- 5. Initial Load ---
 window.onload = () => {
+    mergeDuplicateAccounts();
     updateUI();
 };
