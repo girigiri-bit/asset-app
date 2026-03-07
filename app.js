@@ -12,7 +12,7 @@ let state = JSON.parse(localStorage.getItem('assetFolioDB')) || {
         { id: 's2', accountId: 'acc1', ticker: '7203.T', purchasePrice: 3000, currentPrice: 0, shares: 100, currency: 'JPY' }
     ],
     lastUpdated: null,
-    settings: { exchangeRate: 150 }
+    settings: { exchangeRate: 150, privacyMode: false }
 };
 
 let allocationChart = null;
@@ -93,6 +93,15 @@ function updateUI() {
     const rateInput = document.getElementById('setting-exchange-rate');
     if (rateInput) rateInput.value = state.settings.exchangeRate;
 
+    const privacyToggle = document.getElementById('setting-privacy-mode');
+    if (privacyToggle) privacyToggle.checked = state.settings.privacyMode;
+
+    if (state.settings.privacyMode) {
+        document.body.classList.add('privacy-mode');
+    } else {
+        document.body.classList.remove('privacy-mode');
+    }
+
     // Update last updated text
     const updateEl = document.getElementById('last-updated');
     if (updateEl) {
@@ -122,7 +131,7 @@ function calculateTotalAssets() {
     });
 
     const totalEl = document.querySelector('#totalJPY .amount-value');
-    if (totalEl) totalEl.textContent = Math.floor(total).toLocaleString();
+    if (totalEl) totalEl.innerHTML = `<span class="privacy-blur">${Math.floor(total).toLocaleString()}</span>`;
 }
 
 // --- 3. Rendering ---
@@ -204,7 +213,7 @@ function renderChart() {
                     <span class="cli-name">${item.label}</span>
                 </div>
                 <div class="cli-value">
-                    ¥${Math.floor(item.val).toLocaleString()}
+                    <span class="privacy-blur">¥${Math.floor(item.val).toLocaleString()}</span>
                     <span class="cli-pct">${item.pct.toFixed(1)}%</span>
                 </div>
             `;
@@ -268,7 +277,7 @@ function renderAccountList() {
                 <span class="acc-name">${acc.name}</span>
             </div>
             <div class="acc-actions">
-                <div class="acc-amount">¥${Math.floor(accTotal).toLocaleString()}</div>
+                <div class="acc-amount"><span class="privacy-blur">¥${Math.floor(accTotal).toLocaleString()}</span></div>
                 <button class="btn-delete-x" onclick="deleteAccount('${acc.id}')">×</button>
             </div>
         `;
@@ -307,7 +316,7 @@ function renderStockList() {
                 <span class="stock-tick">${names.secondary}${names.secondary ? ' | ' : ''}${acc ? acc.name : 'Unknown'}</span>
             </div>
             <div class="stock-info">
-                <div class="stock-v">¥${Math.floor(totalJPY).toLocaleString()}</div>
+                <div class="stock-v"><span class="privacy-blur">¥${Math.floor(totalJPY).toLocaleString()}</span></div>
                 <div class="stock-p" style="color: ${changeColor}">
                     ${s.currentPrice ? `¥${Math.floor(s.currentPrice).toLocaleString()} (${changePct}%)` : `@${s.currency === 'USD' ? '$' : '¥'}${s.purchasePrice}`}
                 </div>
@@ -445,6 +454,11 @@ function updateExchangeRate(val) {
     updateUI();
 }
 
+function togglePrivacyMode(enabled) {
+    state.settings.privacyMode = enabled;
+    updateUI();
+}
+
 // --- 6. Drill-Down detail view ---
 
 function showDrillDown(label) {
@@ -502,19 +516,19 @@ function showDrillDown(label) {
             <div class="detail-stat-grid">
                 <div class="stat-card">
                     <div class="stat-label">評価額</div>
-                    <div class="stat-value">¥${Math.floor(currency === 'USD' ? totalVal * state.settings.exchangeRate : totalVal).toLocaleString()}</div>
+                    <div class="stat-value"><span class="privacy-blur">¥${Math.floor(currency === 'USD' ? totalVal * state.settings.exchangeRate : totalVal).toLocaleString()}</span></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">損益</div>
-                    <div class="stat-value" style="color: ${color}">¥${Math.floor(currency === 'USD' ? diff * state.settings.exchangeRate : diff).toLocaleString()} (${diffPct}%)</div>
+                    <div class="stat-value" style="color: ${color}"><span class="privacy-blur">¥${Math.floor(currency === 'USD' ? diff * state.settings.exchangeRate : diff).toLocaleString()}</span> (${diffPct}%)</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">取得総額</div>
-                    <div class="stat-value">¥${Math.floor(currency === 'USD' ? totalCost * state.settings.exchangeRate : totalCost).toLocaleString()}</div>
+                    <div class="stat-value"><span class="privacy-blur">¥${Math.floor(currency === 'USD' ? totalCost * state.settings.exchangeRate : totalCost).toLocaleString()}</span></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">現在価格</div>
-                    <div class="stat-value">${currency === 'USD' ? '$' : '¥'}${currentPriceSingle.toLocaleString()}</div>
+                    <div class="stat-value"><span class="privacy-blur">${currency === 'USD' ? '$' : '¥'}${currentPriceSingle.toLocaleString()}</span></div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">保有数</div>
@@ -522,7 +536,7 @@ function showDrillDown(label) {
                 </div>
                 <div class="stat-card">
                     <div class="stat-label">取得単価</div>
-                    <div class="stat-value">${currency === 'USD' ? '$' : '¥'}${avgCost.toFixed(2)}</div>
+                    <div class="stat-value"><span class="privacy-blur">${currency === 'USD' ? '$' : '¥'}${avgCost.toFixed(2)}</span></div>
                 </div>
             </div>
             <div class="input-info" style="margin-top: -10px">※複数の口座に跨る場合は合算値を表示しています。</div>
@@ -569,7 +583,7 @@ function showDrillDown(label) {
         detailBody.innerHTML = `
             <div class="stat-card" style="margin-bottom: 20px;">
                 <div class="stat-label">口座合計 (推定)</div>
-                <div class="stat-value" style="font-size: 1.5rem">¥${Math.floor(accountTotal).toLocaleString()}</div>
+                <div class="stat-value" style="font-size: 1.5rem"><span class="privacy-blur">¥${Math.floor(accountTotal).toLocaleString()}</span></div>
             </div>
             <div class="chart-layout" style="margin-bottom: 20px;">
                 <div class="chart-container" style="height: 180px">
@@ -592,7 +606,7 @@ function showDrillDown(label) {
                                 <span class="stock-t">${s.ticker}</span>
                             </div>
                             <div class="stock-info">
-                                <div class="stock-v">¥${Math.floor(v).toLocaleString()}</div>
+                                <div class="stock-v"><span class="privacy-blur">¥${Math.floor(v).toLocaleString()}</span></div>
                                 <div class="stock-p">${s.shares}株 (${s.currency})</div>
                             </div>
                         </div>

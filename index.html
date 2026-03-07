@@ -68,6 +68,15 @@
             <section id="screen-settings" class="screen">
                 <h2>設定</h2>
                 <div class="card">
+                    <h3>表示設定</h3>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+                        <span>人に見せるモード (金額を隠す)</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="setting-privacy-mode" onchange="togglePrivacyMode(this.checked)">
+                            <span class="toggle-slider"></span>
+                        </label>
+                    </div>
+                    <hr style="border: none; border-top: 1px solid var(--glass-border); margin: 15px 0;">
                     <h3>為替レート設定</h3>
                     <div class="input-group">
                         <label>1 USD = </label>
