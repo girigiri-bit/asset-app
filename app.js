@@ -706,9 +706,30 @@ async function fetchStockPrices() {
                     state.stocks.forEach(s => {
                         if (s.ticker === symbol) {
                             if (price) s.currentPrice = price;
-                            if (companyName) s.name = companyName;
+                            // Only set name if not already set or if it's currently English
+                            if (companyName && (!s.name || s.name === symbol)) s.name = companyName;
                         }
                     });
+                }
+
+                // If it's a Japanese stock, try to get the Japanese name via search API
+                if (symbol.includes('.T') || /^\d{4}/.test(symbol)) {
+                    try {
+                        const searchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${symbol}&lang=ja-JP&region=JP`;
+                        const searchProxy = `https://corsproxy.io/?url=${encodeURIComponent(searchUrl)}`;
+                        const sRes = await fetch(searchProxy);
+                        const sData = await sRes.json();
+                        if (sData && sData.quotes && sData.quotes[0]) {
+                            const jpName = sData.quotes[0].longname || sData.quotes[0].shortname;
+                            if (jpName) {
+                                state.stocks.forEach(s => {
+                                    if (s.ticker === symbol) s.name = jpName;
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.warn('JP Name fetch failed', e);
+                    }
                 }
             }
         } catch (e) {
