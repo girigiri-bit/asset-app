@@ -115,7 +115,7 @@
                     <button class="btn-secondary" style="width: 100%; border: 1px solid var(--glass-border);" onclick="triggerImport()">
                         📤 データをインポート
                     </button>
-                    <input type="file" id="import-file-input" accept=".json" style="display: none;" onchange="importPortfolio(this.files[0]); this.value='';">
+                    <input type="file" id="import-file-input" accept=".json,application/json" style="position:absolute; left:-9999px;">
                 </div>
 
                 <div class="card danger-zone">

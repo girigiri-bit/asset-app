@@ -1308,11 +1308,13 @@ function importPortfolio(file) {
 }
 
 /**
- * triggerImport() — Hidden file input をクリックしてファイル選択ダイアログを開く
+ * triggerImport() — ファイル選択ダイアログを開く (iOS Safari 互換)
  */
 function triggerImport() {
     const input = document.getElementById('import-file-input');
-    if (input) input.click();
+    if (!input) return;
+    input.value = '';   // Reset so 'change' fires even for the same file
+    input.click();
 }
 
 // GLOBAL TOUCH FIX FOR iPhone REVIEWS
@@ -1333,4 +1335,16 @@ window.onload = async () => {
     // Start automated fetch on load
     await fetchAllData();
     applyTouchFix();
+
+    // Attach import file listener programmatically (iOS Safari compatibility)
+    const importInput = document.getElementById('import-file-input');
+    if (importInput) {
+        importInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                importPortfolio(file);
+            }
+            e.target.value = '';
+        });
+    }
 };
