@@ -112,16 +112,23 @@
                     <button class="btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="exportPortfolio()">
                         📥 データをエクスポート
                     </button>
-                    <button class="btn-secondary" style="width: 100%; border: 1px solid var(--glass-border);" onclick="triggerImport()">
+                    <label for="import-file-input" class="btn-secondary" style="width:100%; display:block; text-align:center; border:1px solid var(--glass-border); padding:12px; cursor:pointer; border-radius:10px; font-weight:600;">
                         📤 データをインポート
-                    </button>
-                    <input type="file" id="import-file-input" accept=".json,application/json" style="position:absolute; left:-9999px;">
+                    </label>
+                    <input type="file" id="import-file-input" accept=".json,application/json" style="display:none;">
                 </div>
 
                 <div class="card danger-zone">
                     <h3>データリセット</h3>
                     <div class="input-info" style="margin-bottom: 10px;">選択中のプロファイルの全データを消去します。</div>
                     <button class="btn-danger" onclick="resetProfile()">現在のプロファイルをリセット</button>
+                </div>
+
+                <div class="card">
+                    <h3>アプリ情報</h3>
+                    <div style="font-size: 14px; opacity: 0.7;">
+                        Version: <span id="app-version"></span>
+                    </div>
                 </div>
             </section>
         </main>

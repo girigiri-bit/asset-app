@@ -6,6 +6,7 @@ if (typeof ChartDataLabels !== 'undefined') {
 // --- Safe Storage Keys ---
 const STORAGE_KEY = 'assetFolioDB';
 const BACKUP_KEY  = 'assetFolioDB_backup';
+const APP_VERSION = '1.0.3';
 
 const defaultState = {
     profiles: [{ id: 'p_default', name: '本人' }],
@@ -1307,15 +1308,8 @@ function importPortfolio(file) {
     reader.readAsText(file);
 }
 
-/**
- * triggerImport() — ファイル選択ダイアログを開く (iOS Safari 互換)
- */
-function triggerImport() {
-    const input = document.getElementById('import-file-input');
-    if (!input) return;
-    input.value = '';   // Reset so 'change' fires even for the same file
-    input.click();
-}
+// triggerImport() removed — replaced with <label for="import-file-input"> in HTML
+// which natively opens the file picker on iOS Safari without JS .click()
 
 // GLOBAL TOUCH FIX FOR iPhone REVIEWS
 function applyTouchFix() {
@@ -1347,4 +1341,8 @@ window.onload = async () => {
             e.target.value = '';
         });
     }
+
+    // Display app version in Settings
+    const versionEl = document.getElementById('app-version');
+    if (versionEl) versionEl.textContent = APP_VERSION;
 };
