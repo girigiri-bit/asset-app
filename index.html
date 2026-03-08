@@ -103,6 +103,21 @@
                     </div>
                 </div>
 
+                <div class="card">
+                    <h3>📦 データ管理</h3>
+                    <div class="input-info" style="margin-bottom: 15px;">
+                        バックアップの作成やデバイス間のデータ移行ができます。<br>
+                        エクスポートしたファイルを iCloud Drive 等に保存すると安全です。
+                    </div>
+                    <button class="btn-primary" style="width: 100%; margin-bottom: 10px;" onclick="exportPortfolio()">
+                        📥 データをエクスポート
+                    </button>
+                    <button class="btn-secondary" style="width: 100%; border: 1px solid var(--glass-border);" onclick="triggerImport()">
+                        📤 データをインポート
+                    </button>
+                    <input type="file" id="import-file-input" accept=".json" style="display: none;" onchange="importPortfolio(this.files[0]); this.value='';">
+                </div>
+
                 <div class="card danger-zone">
                     <h3>データリセット</h3>
                     <div class="input-info" style="margin-bottom: 10px;">選択中のプロファイルの全データを消去します。</div>

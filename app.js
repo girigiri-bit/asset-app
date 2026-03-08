@@ -3,7 +3,11 @@ if (typeof ChartDataLabels !== 'undefined') {
     Chart.register(ChartDataLabels);
 }
 
-let state = JSON.parse(localStorage.getItem('assetFolioDB')) || {
+// --- Safe Storage Keys ---
+const STORAGE_KEY = 'assetFolioDB';
+const BACKUP_KEY  = 'assetFolioDB_backup';
+
+const defaultState = {
     profiles: [{ id: 'p_default', name: '本人' }],
     currentProfileId: 'p_default',
     accounts: [
@@ -16,6 +20,33 @@ let state = JSON.parse(localStorage.getItem('assetFolioDB')) || {
     lastUpdated: null,
     settings: { exchangeRate: 150, privacyMode: false }
 };
+
+/**
+ * loadState() — 安全なデータ読み込み
+ * 1. プライマリキーから読み込み
+ * 2. 失敗時はバックアップキーにフォールバック
+ * 3. どちらも無ければ null を返す
+ */
+function loadState() {
+    try {
+        const primary = localStorage.getItem(STORAGE_KEY);
+        if (primary) return JSON.parse(primary);
+    } catch (e) {
+        console.warn('Primary storage read failed, trying backup...', e);
+    }
+    try {
+        const backup = localStorage.getItem(BACKUP_KEY);
+        if (backup) {
+            console.info('Restored from backup key.');
+            return JSON.parse(backup);
+        }
+    } catch (e) {
+        console.error('Backup storage read also failed.', e);
+    }
+    return null;
+}
+
+let state = loadState() || defaultState;
 
 // --- Profile Migration & Helpers ---
 if (!state.profiles) {
@@ -102,8 +133,18 @@ function migrateStocks() {
     }
 }
 
+/**
+ * saveData() — 二重保存 (プライマリ + バックアップ)
+ * localStorage 消失リスクを軽減
+ */
 function saveData() {
-    localStorage.setItem('assetFolioDB', JSON.stringify(state));
+    try {
+        const json = JSON.stringify(state);
+        localStorage.setItem(STORAGE_KEY, json);
+        localStorage.setItem(BACKUP_KEY, json);
+    } catch (e) {
+        console.error('Failed to save state to localStorage', e);
+    }
 }
 
 function updateUI() {
@@ -1187,6 +1228,91 @@ async function fetchStockPrices() {
             console.warn(`Stock fetch failed for ${symbol}`, e);
         }
     }
+}
+
+// --- Data Export / Import (iCloud 共有対応) ---
+
+/**
+ * exportPortfolio() — 全データを JSON ファイルとしてダウンロード
+ * Safari / iOS / PWA 互換
+ */
+function exportPortfolio() {
+    try {
+        const exportData = {
+            _meta: {
+                app: 'AssetFolio',
+                version: '1.0',
+                exportedAt: new Date().toISOString()
+            },
+            state: state
+        };
+        const json = JSON.stringify(exportData, null, 2);
+        const blob = new Blob([json], { type: 'application/json' });
+        const url  = URL.createObjectURL(blob);
+
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'assetfolio-backup.json';
+        document.body.appendChild(a);
+        a.click();
+
+        // Cleanup
+        setTimeout(() => {
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }, 100);
+
+        showToast('バックアップをダウンロードしました 📥');
+    } catch (e) {
+        console.error('Export failed', e);
+        showToast('エクスポートに失敗しました');
+    }
+}
+
+/**
+ * importPortfolio(file) — JSON ファイルからデータを復元
+ * バリデーション付き
+ */
+function importPortfolio(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const raw = JSON.parse(e.target.result);
+
+            // フォーマット検証: { _meta, state } or 直接 state
+            const imported = raw.state || raw;
+
+            // 最低限の構造チェック
+            if (!imported.accounts || !imported.stocks || !imported.profiles) {
+                throw new Error('Invalid format: missing required fields');
+            }
+
+            if (!confirm('現在のデータを上書きしますか？\nこの操作は取り消せません。')) return;
+
+            // state を上書き
+            state = imported;
+            saveData();
+            updateUI();
+            showToast('データを復元しました ✅');
+        } catch (err) {
+            console.error('Import failed', err);
+            showToast('インポート失敗: ファイル形式が不正です');
+        }
+    };
+    reader.onerror = () => {
+        showToast('ファイルの読み込みに失敗しました');
+    };
+    reader.readAsText(file);
+}
+
+/**
+ * triggerImport() — Hidden file input をクリックしてファイル選択ダイアログを開く
+ */
+function triggerImport() {
+    const input = document.getElementById('import-file-input');
+    if (input) input.click();
 }
 
 // GLOBAL TOUCH FIX FOR iPhone REVIEWS
