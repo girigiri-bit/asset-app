@@ -1189,12 +1189,24 @@ async function fetchStockPrices() {
     }
 }
 
+// GLOBAL TOUCH FIX FOR iPhone REVIEWS
+function applyTouchFix() {
+    const targets = 'button, .chart-tab, .drill-downable, .nav-item, .add-main-btn, .cli-label, .chart-list-item';
+    document.querySelectorAll(targets).forEach(el => {
+        el.ontouchstart = function(e) {
+            this.click();
+            e.preventDefault(); 
+        };
+    });
+}
+
 // --- 5. Initial Load ---
 window.onload = async () => {
     mergeDuplicateAccounts();
     updateUI();
     // Start automated fetch on load
     await fetchAllData();
+    applyTouchFix();
     
     // Register Service Worker
     if ('serviceWorker' in navigator) {
