@@ -6,7 +6,7 @@ if (typeof ChartDataLabels !== 'undefined') {
 // --- Safe Storage Keys ---
 const STORAGE_KEY = 'assetFolioDB';
 const BACKUP_KEY  = 'assetFolioDB_backup';
-const APP_VERSION = '1.0.3';
+const APP_VERSION = '1.0.4';
 
 const defaultState = {
     profiles: [{ id: 'p_default', name: '本人' }],
@@ -82,6 +82,92 @@ function shortenLabel(text) {
         ? text.substring(0, maxLength) + "..."
         : text;
 }
+
+const customLeaderLinePlugin = {
+    id: 'customLeaderLine',
+    afterDraw: (chart) => {
+        const ctx = chart.ctx;
+        const cx = chart.chartArea.left + chart.chartArea.width / 2;
+        const cy = chart.chartArea.top + chart.chartArea.height / 2;
+        
+        let totalVal = 0;
+        chart.data.datasets[0].data.forEach(v => totalVal += v);
+        
+        const labelsData = [];
+        
+        // Step 1: Calculate target positions
+        chart.data.datasets.forEach((dataset, i) => {
+            const meta = chart.getDatasetMeta(i);
+            meta.data.forEach((element, index) => {
+                const val = dataset.data[index];
+                const pct = (val / totalVal * 100);
+                if (pct <= 5) return; // Skip small slices to avoid clutter
+
+                const midAngle = element.startAngle + (element.endAngle - element.startAngle) / 2;
+                const outerRadius = element.outerRadius;
+                
+                const xEdge = cx + Math.cos(midAngle) * outerRadius;
+                const yEdge = cy + Math.sin(midAngle) * outerRadius;
+
+                // Push text further out
+                const lineExtension = 20; 
+                const xElbow = cx + Math.cos(midAngle) * (outerRadius + lineExtension);
+                let yElbow = cy + Math.sin(midAngle) * (outerRadius + lineExtension);
+                
+                const isRight = xElbow > cx;
+                
+                labelsData.push({
+                    index,
+                    labelRaw: chart.data.labels[index],
+                    pct,
+                    xEdge, yEdge, xElbow, yElbow,
+                    isRight,
+                    midAngle
+                });
+            });
+        });
+
+        // Step 2: Collision detection/avoidance
+        const adjustOverlap = (sideLabels) => {
+            // Sort by Y position (top to bottom)
+            sideLabels.sort((a, b) => a.yElbow - b.yElbow);
+            const lh = 14; // Minimal line height block for labels
+            for (let i = 1; i < sideLabels.length; i++) {
+                if (sideLabels[i].yElbow - sideLabels[i-1].yElbow < lh) {
+                    sideLabels[i].yElbow = sideLabels[i-1].yElbow + lh;
+                }
+            }
+        };
+        adjustOverlap(labelsData.filter(l => l.isRight));
+        adjustOverlap(labelsData.filter(l => !l.isRight));
+
+        // Step 3: Draw lines and text
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = "bold 11px -apple-system, BlinkMacSystemFont, sans-serif";
+
+        labelsData.forEach(lbl => {
+            const xTextPoint = lbl.isRight ? lbl.xElbow + 10 : lbl.xElbow - 10;
+            
+            ctx.beginPath();
+            ctx.moveTo(lbl.xEdge, lbl.yEdge);
+            // If the label was shifted vertically, we can draw a curved or 2-segment line
+            ctx.lineTo(lbl.xElbow, lbl.yElbow);
+            ctx.lineTo(xTextPoint, lbl.yElbow);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.stroke();
+
+            const textLabel = shortenLabel(lbl.labelRaw);
+            const textPct = lbl.pct.toFixed(1) + '%';
+            const text = `${textLabel} ${textPct}`;
+            
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = lbl.isRight ? 'left' : 'right';
+            ctx.fillText(text, lbl.isRight ? xTextPoint + 4 : xTextPoint - 4, lbl.yElbow);
+        });
+    }
+};
 
 // --- 2. Core Functions ---
 
@@ -464,55 +550,6 @@ function renderChart() {
         });
     }
 
-    const leaderLinePlugin = {
-        id: 'leaderLine',
-        afterDraw: (chart) => {
-            const ctx = chart.ctx;
-            const cx = chart.chartArea.left + chart.chartArea.width / 2;
-            const cy = chart.chartArea.top + chart.chartArea.height / 2;
-
-            chart.data.datasets.forEach((dataset, i) => {
-                const meta = chart.getDatasetMeta(i);
-                meta.data.forEach((element, index) => {
-                    const val = dataset.data[index];
-                    const pct = (val / grandTotal * 100);
-                    if (pct <= 5) return; // Skip small slices to avoid clutter
-
-                    const midAngle = element.startAngle + (element.endAngle - element.startAngle) / 2;
-                    const outerRadius = element.outerRadius;
-                    
-                    const xEdge = cx + Math.cos(midAngle) * outerRadius;
-                    const yEdge = cy + Math.sin(midAngle) * outerRadius;
-
-                    const lineExtension = 15;
-                    const xElbow = cx + Math.cos(midAngle) * (outerRadius + lineExtension);
-                    const yElbow = cy + Math.sin(midAngle) * (outerRadius + lineExtension);
-
-                    const isRight = xElbow > cx;
-                    const xTextPoint = isRight ? xElbow + 15 : xElbow - 15;
-
-                    ctx.beginPath();
-                    ctx.moveTo(xEdge, yEdge);
-                    ctx.lineTo(xElbow, yElbow);
-                    ctx.lineTo(xTextPoint, yElbow);
-                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-                    ctx.lineWidth = 1;
-                    ctx.stroke();
-
-                    const labelRaw = chart.data.labels[index];
-                    const label = shortenLabel(labelRaw);
-                    const text = `${label} ${pct.toFixed(1)}%`;
-                    
-                    ctx.fillStyle = '#ffffff';
-                    ctx.font = "10px sans-serif";
-                    ctx.textAlign = isRight ? 'left' : 'right';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(text, isRight ? xTextPoint + 4 : xTextPoint - 4, yElbow);
-                });
-            });
-        }
-    };
-
     allocationChart = new Chart(ctx, {
         type: 'doughnut',
         data: {
@@ -520,15 +557,17 @@ function renderChart() {
             datasets: [{
                 data: values,
                 backgroundColor: colors.slice(0, labels.length),
-                borderWidth: 0
+                borderWidth: 0,
+                hoverOffset: 4
             }]
         },
-        plugins: [leaderLinePlugin],
+        plugins: [customLeaderLinePlugin],
         options: {
+            clip: false,
             responsive: true,
             maintainAspectRatio: false,
             layout: {
-                padding: { left: 40, right: 40, top: 20, bottom: 20 }
+                padding: { left: 40, right: 40, top: 40, bottom: 40 }
             },
             cutout: '60%',
             onClick: (event, elements) => {
@@ -1171,13 +1210,19 @@ function showDrillDown(label) {
                     datasets: [{
                         data: processedList.map(item => item.val),
                         backgroundColor: colors.slice(0, processedList.length),
-                        borderWidth: 0
+                        borderWidth: 0,
+                        hoverOffset: 4
                     }]
                 },
+                plugins: [customLeaderLinePlugin],
                 options: {
+                    clip: false,
                     responsive: true,
                     maintainAspectRatio: false,
-                    cutout: '70%',
+                    layout: {
+                        padding: { left: 40, right: 40, top: 40, bottom: 40 }
+                    },
+                    cutout: '60%',
                     onClick: (event, elements) => {
                         if (elements.length > 0) {
                             const index = elements[0].index;
