@@ -8,6 +8,10 @@
   --text-main: #ffffff;
   --text-sub: #a0a0a0;
   --white: #ffffff;
+  --font-title: 18px;
+  --font-section: 16px;
+  --font-body: 14px;
+  --font-small: 12px;
 }
 
 * { box-sizing: border-box; }
@@ -16,14 +20,16 @@ body {
   margin: 0; 
   background: var(--bg-dark); 
   color: var(--text-main);
-  font-family: 'Outfit', 'Inter', sans-serif; 
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  font-size: var(--font-body);
   overflow-x: hidden;
   /* Prevent double-tap zoom delay on mobile */
   touch-action: manipulation;
 }
 
 #app { 
-  max-width: 480px; 
+  max-width: 480px;
+  min-width: 320px;
   margin: 0 auto; 
   min-height: 100vh; 
   background: var(--bg-dark); 
@@ -100,7 +106,7 @@ header {
 
 header h1 {
   margin: 0;
-  font-size: clamp(1.2rem, 5vw, 1.5rem);
+  font-size: var(--font-title);
   letter-spacing: 1px;
   background: var(--primary-gradient);
   -webkit-background-clip: text;
@@ -115,7 +121,7 @@ header h1 {
 }
 
 .last-updated {
-  font-size: 0.65rem;
+  font-size: var(--font-small);
   color: var(--text-sub);
 }
 
@@ -143,7 +149,7 @@ header h1 {
 }
 
 .input-info {
-  font-size: 0.7rem;
+  font-size: var(--font-small);
   color: var(--text-sub);
   margin-top: -10px;
   margin-bottom: 15px;
@@ -166,8 +172,14 @@ header h1 {
   backdrop-filter: blur(10px);
   border: 1px solid var(--glass-border);
   margin: 15px 10px; 
-  padding: 20px; 
-  border-radius: 16px; 
+  padding: 12px; 
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  transition: transform 0.15s ease;
+}
+
+.card:active {
+  transform: scale(0.97);
 }
 
 .total-assets-card {
@@ -203,7 +215,7 @@ header h1 {
   margin-bottom: 20px;
 }
 
-.card-header h3 { margin: 0; font-size: 1rem; }
+.card-header h3 { margin: 0; font-size: var(--font-section); }
 
 .chart-tabs {
   display: flex;
@@ -219,9 +231,10 @@ header h1 {
   color: var(--text-sub);
   padding: 6px 12px;
   border-radius: 6px;
-  font-size: 0.75rem;
+  font-size: var(--font-small);
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
 }
 
 .chart-tab.active {
@@ -250,9 +263,21 @@ header h1 {
 
 .chart-list-item {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.85rem;
+  flex-direction: column;
+  justify-content: center;
+  font-size: var(--font-body);
+  background: var(--card-bg);
+  border-radius: 12px;
+  padding: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  margin-bottom: 8px;
+  min-height: 44px;
+  transition: transform 0.15s ease, background 0.2s;
+  cursor: pointer;
+}
+
+.chart-list-item:active {
+  transform: scale(0.98);
 }
 
 .cli-label {
@@ -286,7 +311,7 @@ header h1 {
 /* Account List */
 .account-list-section h3 {
   margin: 20px 10px 10px;
-  font-size: 1rem;
+  font-size: var(--font-section);
 }
 
 .account-grid {
@@ -303,6 +328,7 @@ header h1 {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  min-height: 60px;
 }
 
 .acc-info {
@@ -401,8 +427,11 @@ header h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
   gap: 5px;
   cursor: pointer;
+  min-width: 44px;
+  min-height: 44px;
 }
 
 .nav-item.active { color: var(--primary); }
@@ -478,6 +507,7 @@ input, select {
   border: none;
   font-weight: 600;
   cursor: pointer;
+  min-height: 44px;
 }
 
 .btn-primary { background: var(--primary-gradient); color: white; }

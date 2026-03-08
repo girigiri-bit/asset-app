@@ -74,6 +74,14 @@ let allocationChart = null;
 let chartType = 'ticker';
 let editingAccountId = null;
 let editingStockId = null;
+let selectedChartLabel = null;
+
+function shortenLabel(text) {
+    const maxLength = 6;
+    return text.length > maxLength
+        ? text.substring(0, maxLength) + "..."
+        : text;
+}
 
 // --- 2. Core Functions ---
 
@@ -422,20 +430,88 @@ function renderChart() {
             const color = colors[i % colors.length];
             const listItem = document.createElement('div');
             listItem.className = 'chart-list-item';
-            listItem.onclick = () => showDrillDown(item.label);
+            
+            listItem.onclick = () => {
+                if (selectedChartLabel === item.label) {
+                    showDrillDown(item.label);
+                    selectedChartLabel = null;
+                } else {
+                    selectedChartLabel = item.label;
+                    document.querySelectorAll('.cli-details').forEach(el => el.style.display = 'none');
+                    const details = listItem.querySelector('.cli-details');
+                    if (details) details.style.display = 'block';
+                }
+            };
+            
             listItem.innerHTML = `
-                <div class="cli-label">
-                    <span class="cli-dot" style="background: ${color}"></span>
-                    <span class="cli-name">${item.label}</span>
+                <div style="display:flex; justify-content:space-between; align-items:center; width:100%;">
+                    <div class="cli-label">
+                        <span class="cli-dot" style="background: ${color}"></span>
+                        <span class="cli-name">${shortenLabel(item.label)}</span>
+                    </div>
+                    <div class="cli-value">
+                        <span class="privacy-blur">¥${Math.floor(item.val).toLocaleString()}</span>
+                        <span class="cli-pct">${item.pct.toFixed(1)}%</span>
+                    </div>
                 </div>
-                <div class="cli-value">
-                    <span class="privacy-blur">¥${Math.floor(item.val).toLocaleString()}</span>
-                    <span class="cli-pct">${item.pct.toFixed(1)}%</span>
+                <div class="cli-details" style="display:none; width:100%; margin-top:12px; padding-top:12px; border-top:1px solid var(--glass-border); font-size:var(--font-small); color:var(--text-sub); animation: fadeIn 0.2s;">
+                    評価額: <span class="privacy-blur">¥${Math.floor(item.val).toLocaleString()}</span><br>
+                    比率: ${item.pct.toFixed(1)}%<br>
+                    <div style="text-align:center; margin-top:8px; color:var(--primary); font-weight:bold; font-size:var(--font-body);">タップして詳細を見る</div>
                 </div>
             `;
             listEl.appendChild(listItem);
         });
     }
+
+    const leaderLinePlugin = {
+        id: 'leaderLine',
+        afterDraw: (chart) => {
+            const ctx = chart.ctx;
+            const cx = chart.chartArea.left + chart.chartArea.width / 2;
+            const cy = chart.chartArea.top + chart.chartArea.height / 2;
+
+            chart.data.datasets.forEach((dataset, i) => {
+                const meta = chart.getDatasetMeta(i);
+                meta.data.forEach((element, index) => {
+                    const val = dataset.data[index];
+                    const pct = (val / grandTotal * 100);
+                    if (pct <= 5) return; // Skip small slices to avoid clutter
+
+                    const midAngle = element.startAngle + (element.endAngle - element.startAngle) / 2;
+                    const outerRadius = element.outerRadius;
+                    
+                    const xEdge = cx + Math.cos(midAngle) * outerRadius;
+                    const yEdge = cy + Math.sin(midAngle) * outerRadius;
+
+                    const lineExtension = 15;
+                    const xElbow = cx + Math.cos(midAngle) * (outerRadius + lineExtension);
+                    const yElbow = cy + Math.sin(midAngle) * (outerRadius + lineExtension);
+
+                    const isRight = xElbow > cx;
+                    const xTextPoint = isRight ? xElbow + 15 : xElbow - 15;
+
+                    ctx.beginPath();
+                    ctx.moveTo(xEdge, yEdge);
+                    ctx.lineTo(xElbow, yElbow);
+                    ctx.lineTo(xTextPoint, yElbow);
+                    ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    const labelRaw = chart.data.labels[index];
+                    const label = shortenLabel(labelRaw);
+                    const text = `${label} ${pct.toFixed(1)}%`;
+                    
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = "10px sans-serif";
+                    ctx.textAlign = isRight ? 'left' : 'right';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(text, isRight ? xTextPoint + 4 : xTextPoint - 4, yElbow);
+                });
+            });
+        }
+    };
 
     allocationChart = new Chart(ctx, {
         type: 'doughnut',
@@ -447,10 +523,14 @@ function renderChart() {
                 borderWidth: 0
             }]
         },
+        plugins: [leaderLinePlugin],
         options: {
             responsive: true,
             maintainAspectRatio: false,
-            cutout: '70%',
+            layout: {
+                padding: { left: 40, right: 40, top: 20, bottom: 20 }
+            },
+            cutout: '60%',
             onClick: (event, elements) => {
                 if (elements.length > 0) {
                     const index = elements[0].index;
@@ -459,14 +539,11 @@ function renderChart() {
                 }
             },
             plugins: {
-                legend: { display: false },
+                legend: { 
+                    display: false 
+                },
                 datalabels: {
-                    color: '#ffffff',
-                    font: { weight: 'bold', size: 10 },
-                    formatter: (value) => {
-                        const pct = (value / grandTotal * 100).toFixed(1);
-                        return pct > 5 ? `${pct}%` : '';
-                    }
+                    display: false
                 }
             }
         }
